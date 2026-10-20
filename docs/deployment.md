@@ -32,7 +32,7 @@ Vite dev server proxies `/api`.
    `mongodb+srv://`.
 
 The first Railway boot runs the seed script automatically, so hoops, palettes,
-digitizing presets and the nine motifs appear in the fresh database without a
+digitizing presets and the eight motifs appear in the fresh database without a
 manual step.
 
 ---
@@ -76,9 +76,10 @@ allowed, so local development keeps working against the same code.
 2. Keep the **root directory** as the repository root. `vercel.json` sets:
 
    - install: `npm ci --include=dev`
-   - build: `npm run build -w @threadworks/engine && npm run build -w @threadworks/client`
+   - build: `npm run build -w @threadworks/engine && npm run build -w @threadworks/server && npm run build -w @threadworks/client`
    - output: `client/dist`
-   - SPA rewrite: every path returns `index.html`
+   - API rewrite: `/api/*` goes to the Vercel Function
+   - SPA rewrite: every non-API path returns `index.html`
 
 3. **Environment Variables** (Production and Preview):
 
@@ -102,11 +103,35 @@ allowed, so local development keeps working against the same code.
    `https://*.vercel.app` if preview URLs matter).
 4. Redeploy Railway, then reload the Vercel site.
 
+### Vercel-only API (fallback when Railway is unavailable)
+
+The same Express app can run as a single Vercel Function. This is useful when
+Railway builds are paused or when you want one free host for both client and
+API.
+
+- `api/index.mjs` imports the compiled server from `server/dist` and connects to
+  Atlas lazily on the first request.
+- `vercel.json` rewrites `/api/(.*)` to `/api?path=$1`; the function restores
+  the original path before handing the request to Express.
+- Add these Vercel environment variables (Production and Preview):
+  `MONGODB_URI`, `CORS_ORIGINS` (the Vercel domain plus
+  `https://*.vercel.app`), and `NODE_ENV=production`.
+- Leave `VITE_API_URL` unset. The client then calls the same origin's `/api`.
+- The function reuses one MongoDB connection per instance and runs
+  `ensureIndexes` on the first request.
+
+Vercel Functions have a **4.5 MB request/response body limit**. Normal designs
+fit, but very large designs (or a project list carrying many full designs) can
+return `413 FUNCTION_PAYLOAD_TOO_LARGE`. Railway has no such limit and remains
+the better host for the full `MAX_PROJECT_MB` range. To switch back, set
+`VITE_API_URL` to the Railway origin and redeploy Vercel; the Vercel Function
+can stay in the repo unused.
+
 ---
 
 ## 4. GitHub repository
 
-The project is not a git repository yet. From `D:\my-embroidery-software`:
+The project is already a git repository pushed to GitHub. For a fresh clone or a new remote, from `D:\my-embroidery-software`:
 
 ```powershell
 git init

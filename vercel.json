@@ -2,7 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "npm ci --include=dev",
-  "buildCommand": "npm run build -w @threadworks/engine && npm run build -w @threadworks/client",
+  "buildCommand": "npm run build -w @threadworks/engine && npm run build -w @threadworks/server && npm run build -w @threadworks/client",
   "outputDirectory": "client/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api?path=$1" },
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
+  ]
 }
