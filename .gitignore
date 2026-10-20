@@ -32,3 +32,9 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+.vercel
+.env*
+
+# Vercel local link
+.vercel/
