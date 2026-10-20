@@ -1,0 +1,38 @@
+{
+  "name": "@threadworks/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ThreadWorks Studio local API - Express + MongoDB on 127.0.0.1",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "seed": "tsx src/scripts/seed.ts",
+    "backup": "tsx src/scripts/backup.ts backup",
+    "restore": "tsx src/scripts/restore.ts",
+    "backups": "tsx src/scripts/backup.ts list"
+  },
+  "dependencies": {
+    "@threadworks/engine": "*",
+    "compression": "^1.7.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "mongodb": "^6.10.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.7.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

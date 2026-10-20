@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Local environment & secrets
+.env
+.env.*
+!.env.example
+
+# Copyrighted reference material, kept locally only
+Wilcom_EmbroideryStudio_Features_Guide.pdf
+
+# Local data (projects, exports, backups, uploads)
+data/
+
+# Test / tooling output
+coverage/
+playwright-report/
+test-results/
+.vitest/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

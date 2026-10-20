@@ -1,0 +1,1229 @@
+/* ---------------------------------------------------------------------------
+   ThreadWorks Studio - application shell
+
+   Dark by default: the canvas is a light-on-dark work surface and thread
+   colours read truer against a neutral dark ground. Layout is a fixed three
+   column grid so the canvas takes all remaining width rather than being
+   squeezed between panels of arbitrary size.
+--------------------------------------------------------------------------- */
+
+:root {
+  --bg: #14161a;
+  --bg-raised: #1b1e24;
+  --bg-panel: #1f232a;
+  --border: #2c313a;
+  --text: #e6e8ec;
+  --text-muted: #98a0ad;
+  --accent: #4f8cff;
+  --accent-soft: rgba(79, 140, 255, 0.16);
+  --ok: #46c98a;
+  --warn: #ffb020;
+  --error: #ff6b6b;
+  --radius: 6px;
+  --topbar-h: 46px;
+  --statusbar-h: 30px;
+  --toolbar-w: 92px;
+  --panel-w: 288px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: #262b33;
+  border-color: #3a414c;
+}
+
+button:active:not(:disabled) {
+  background: #2c323b;
+}
+
+button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input,
+select {
+  background: #12141a;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 7px;
+  width: 100%;
+}
+
+/* --- shell -------------------------------------------------------------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--toolbar-w) minmax(0, 1fr) var(--panel-w);
+  min-height: 0;
+}
+
+.editor-area {
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  position: relative;
+}
+
+/* --- top bar ------------------------------------------------------------ */
+
+.topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), #8a5cf6);
+  font-size: 13px;
+}
+
+.topbar-group {
+  display: flex;
+  gap: 6px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+}
+
+.topbar-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title-input {
+  max-width: 320px;
+  background: transparent;
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.title-input:hover,
+.title-input:focus {
+  background: #12141a;
+  border-color: var(--border);
+}
+
+.dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: 0 0 auto;
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--error);
+}
+
+.status-dot.ok {
+  background: var(--ok);
+}
+
+.status-dot.warn {
+  background: var(--warn);
+}
+
+.toast {
+  position: absolute;
+  top: calc(var(--topbar-h) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #232833;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  max-width: 60vw;
+  white-space: pre-wrap;
+  z-index: 40;
+}
+
+/* --- toolbar ------------------------------------------------------------ */
+
+.toolbar {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 6px;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.toolbar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolbar li button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 3px;
+  background: transparent;
+  border-color: transparent;
+  font-size: 11px;
+}
+
+.toolbar li button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+}
+
+.toolbar li button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.toolbar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.toolbar-footer button {
+  font-size: 11px;
+  padding: 5px 4px;
+}
+
+.tool-hint {
+  margin: auto 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  padding: 6px 2px 0;
+}
+
+/* --- right panel -------------------------------------------------------- */
+
+.right-panel {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.panel-section h2 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.field > span {
+  color: var(--text-muted);
+}
+
+.field small {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.field.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+}
+
+.field.checkbox input {
+  width: auto;
+}
+
+.field.checkbox span {
+  color: var(--text);
+}
+
+/** Two half-width fields side by side - an X/Y pair reads as one value. */
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 9px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+details[open] summary {
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+details .field + .field {
+  margin-top: 7px;
+}
+
+.button-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.field-row .field {
+  min-width: 0;
+}
+
+.button-row .field.compact {
+  flex: 0 0 76px;
+  max-width: 76px;
+}
+
+.button-row button {
+  flex: 1;
+  font-size: 11.5px;
+  min-width: 90px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.muted {
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.small {
+  font-size: 11px;
+}
+
+code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+}
+
+/* --- palette ------------------------------------------------------------ */
+
+.swatch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.swatch-list li {
+  display: grid;
+  grid-template-columns: 30px 1fr 26px;
+  gap: 6px;
+  align-items: center;
+  padding: 3px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+
+.swatch-list li.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.swatch-list input[type='color'] {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.swatch-list input[type='text'] {
+  padding: 4px 6px;
+}
+
+.swatch-list li button {
+  padding: 2px 0;
+}
+
+/* --- canvas ------------------------------------------------------------- */
+
+.editor-canvas-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.editor-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.canvas-hint {
+  position: absolute;
+  /* Clear of the stitch player, which also sits centred at the bottom. */
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 22, 26, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.canvas-coords {
+  position: absolute;
+  left: 26px;
+  bottom: 8px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  pointer-events: none;
+}
+
+/* --- stitch player -------------------------------------------------------- */
+
+.stitch-player {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+
+  background: rgba(20, 22, 26, 0.94);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.player-btn {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.player-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.player-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.player-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #101216;
+  font-weight: 600;
+}
+
+.player-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* Wide enough that the whole sequence can be reached without a long drag. */
+.player-scrub {
+  width: min(34vw, 360px);
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.player-scrub:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.player-count {
+  min-width: 132px;
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.player-speed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.player-speed select {
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11.5px;
+}
+
+.player-end {
+  font-size: 11px;
+  color: var(--ok);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* --- status bar --------------------------------------------------------- */
+
+.statusbar {
+  height: var(--statusbar-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.status-item {
+  white-space: nowrap;
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+.status-issue {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 46vw;
+}
+
+.status-issue.error {
+  color: var(--error);
+}
+
+.status-issue.warning {
+  color: var(--warn);
+}
+
+.status-issue.ok {
+  color: var(--ok);
+}
+
+.startup-warning {
+  position: fixed;
+  bottom: calc(var(--statusbar-h) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3a2a12;
+  border: 1px solid var(--warn);
+  color: #ffd899;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  max-width: 70vw;
+  z-index: 50;
+}
+
+/* --- modal -------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: min(620px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal-header button {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 6px;
+}
+
+/* Preferences: two columns of controls, collapsing to one when narrow. */
+.pref-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  align-content: start;
+  overflow-y: auto;
+}
+
+.pref-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 720px) {
+  .pref-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.search-input {
+  font-size: 13px;
+}
+
+.project-list {
+  overflow-y: auto;
+  min-height: 140px;
+}
+
+/**
+ * The recent-files block sits ABOVE the full library, so it is a heading plus
+ * its own scrolling list rather than a row inside the main one - mixing them
+ * would make "search everything" silently exclude the recent entries.
+ */
+.recent-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.recent-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recent-header h3 {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-button:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.recent-files ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+/** Checkpoint row: metadata block plus the two actions beside it. */
+.history-entry {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 9px 11px;
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.project-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.project-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 9px 11px;
+}
+
+.project-name {
+  font-weight: 600;
+}
+
+.project-meta,
+.project-date {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.project-delete {
+  color: var(--error);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.empty-state {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 34px 10px;
+}
+
+.inline-error {
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ffb3b3;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Narrow screens: collapse the tool labels before anything becomes unusable. */
+@media (max-width: 1100px) {
+  :root {
+    --toolbar-w: 56px;
+    --panel-w: 244px;
+  }
+
+  .tool-label {
+    display: none;
+  }
+
+  .tool-hint {
+    display: none;
+  }
+}
+
+/* --- image tracing ------------------------------------------------------ */
+
+.dialog-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.trace-dialog .trace-field {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.trace-dialog .trace-field > span:first-child {
+  color: var(--text-dim);
+}
+
+.trace-dialog .trace-field input[type='number'],
+.trace-dialog .trace-field select {
+  min-width: 0;
+}
+
+.trace-unit {
+  color: var(--text-dim);
+}
+
+.trace-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.trace-preview {
+  display: grid;
+  place-items: center;
+  background: repeating-conic-gradient(#2a2a2e 0% 25%, #232327 0% 50%) 50% / 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  max-height: 34vh;
+  overflow: hidden;
+}
+
+.trace-preview canvas {
+  max-width: 100%;
+  max-height: 30vh;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.trace-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.trace-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.trace-dialog .trace-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.trace-dialog .trace-check input {
+  margin-top: 2px;
+}
+
+/* --- machine file import ------------------------------------------------ */
+
+.import-dialog .import-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.import-dialog .import-summary div {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.import-dialog .import-summary dt {
+  color: var(--text-dim);
+}
+
+.import-dialog .import-summary dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-notes {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------------------
+   Motif library
+
+   A motif is chosen by looking at it, so the picker is a grid of drawn
+   outlines rather than a list of names. Each chip is a button, which keeps
+   the whole control usable from the keyboard without a second code path.
+--------------------------------------------------------------------------- */
+
+.motif-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.motif-picker .field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.motif-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.motif-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.motif-chip svg path {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.motif-chip:hover:not(:disabled) svg path {
+  stroke: var(--text);
+}
+
+.motif-chip.is-selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.motif-chip.is-selected svg path {
+  stroke: var(--accent);
+}
+
+.motif-chip-name {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.motif-chip.is-selected .motif-chip-name {
+  color: var(--text);
+}
+
+/* The library dialog reuses the outline drawing at a larger size so a shape
+   can be judged before it is picked. */
+.motif-preview {
+  align-self: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: 4px;
+}
+
+.motif-preview path,
+.motif-library-row svg path {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.motif-library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 34vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.motif-library-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.motif-library-row:last-child {
+  border-bottom: none;
+}
+
+.motif-row-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.motif-row-name em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.motif-row-name small {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.motif-rename {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.motif-rename input {
+  flex: 1;
+  min-width: 0;
+}
+
+.motif-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.motif-library .field,
+.motif-library textarea {
+  width: 100%;
+}
+
+.motif-library textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px;
+  resize: vertical;
+}
+
+/* Buttons that act on something other than the primary action. */
+button.secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+button.secondary:hover:not(:disabled) {
+  color: var(--text);
+}
+
+button.danger {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--error);
+}
+
+button.danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: var(--error);
+}

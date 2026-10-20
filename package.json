@@ -1,0 +1,42 @@
+{
+  "name": "threadworks-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ThreadWorks Studio - local-first embroidery digitizing workstation (MERN + TypeScript)",
+  "workspaces": [
+    "packages/*",
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -n engine,server,client -c gray,blue,green \"npm run dev -w @threadworks/engine\" \"npm run dev -w @threadworks/server\" \"npm run dev -w @threadworks/client\"",
+    "build": "npm run build -w @threadworks/engine && npm run build -w @threadworks/server && npm run build -w @threadworks/client",
+    "start": "npm run start -w @threadworks/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "test": "npm run test --workspaces --if-present",
+    "test:engine": "npm run test -w @threadworks/engine",
+    "test:server": "npm run test -w @threadworks/server",
+    "test:client": "npm run test -w @threadworks/client",
+    "seed": "npm run seed -w @threadworks/server",
+    "smoke": "tsx scripts/smoke.ts",
+    "backup": "npm run backup -w @threadworks/server",
+    "restore": "npm run restore -w @threadworks/server"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}
