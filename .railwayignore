@@ -1,0 +1,23 @@
+# Railway builds from source; never upload local secrets or generated output.
+.env
+.env.*
+!.env.example
+
+node_modules
+data
+.git
+.vercel
+
+# Build output is produced by the Railway build command.
+client/dist
+server/dist
+packages/embroidery-engine/dist
+
+# Not needed by the API build.
+client/src
+docs
+samples
+scripts
+Wilcom_EmbroideryStudio_Features_Guide.pdf
+
+*.log
