@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { writeDst, type LetteringSpec, type Stitch } from '@threadworks/engine';
 import { App } from '../App.js';
@@ -497,6 +498,38 @@ describe('digitizing through the UI', () => {
 
     fireEvent.keyDown(window, { key: 'v' });
     expect(canvas).toHaveStyle({ cursor: 'default' });
+  });
+
+  it('zooms the canvas with the plain mouse wheel', async () => {
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('server-status')).toHaveTextContent('Local database'),
+    );
+
+    const canvas = screen.getByTestId('editor-canvas');
+    await waitFor(() => expect(Number(canvas.dataset.scale)).toBeGreaterThan(0));
+    const before = Number(canvas.dataset.scale);
+
+    // No ctrl/meta: the wheel itself zooms, anchored at the pointer.
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 400, clientY: 300 });
+
+    await waitFor(() => expect(Number(canvas.dataset.scale)).toBeGreaterThan(before));
+  });
+
+  it('paints after the StrictMode mount / cleanup / mount cycle', async () => {
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('server-status')).toHaveTextContent('Local database'),
+    );
+
+    // A cancelled animation-frame id left in the ref used to make every later
+    // schedule() think a paint was already queued, leaving development blank.
+    const canvas = screen.getByTestId('editor-canvas');
+    await waitFor(() => expect(Number(canvas.dataset.scale)).toBeGreaterThan(0));
   });
 });
 

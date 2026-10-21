@@ -1080,8 +1080,7 @@ throughout.
 | `Ctrl+D`                  | duplicate selection                                                          |
 | `Ctrl+G`                  | group the selection                                                          |
 | `Ctrl+Shift+G`            | ungroup                                                                      |
-| `Ctrl`/`⌘` + wheel        | zoom at cursor                                                               |
-| wheel                     | pan vertically                                                               |
+| wheel / `Ctrl`/`⌘` + wheel | zoom at cursor                                                              |
 | middle-drag / `H` + drag  | pan                                                                          |
 | shift+click               | add to selection                                                             |
 

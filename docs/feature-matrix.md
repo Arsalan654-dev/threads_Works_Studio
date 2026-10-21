@@ -146,7 +146,7 @@ Status legend:
 | Grid and rulers                        | âœ…                  | âœ…     | independent minor step and major spacing, major lines drawn heavier                                                |
 | Snap to grid                           | âœ…                  | âœ…     | minor-grid rounding                                                                                                |
 | Snap to object geometry                | Snap to Object      | âœ…     | node > edge > centre priority, 8 px threshold, then grid; hidden objects and the dragged object itself are skipped |
-| Zoom / pan                             | âœ…                  | âœ…     | cursor-anchored zoom, wheel pan, middle-drag                                                                       |
+| Zoom / pan                             | âœ…                  | âœ…     | cursor-anchored wheel zoom, middle-drag / `H` pan                                                                  |
 | **Stitch player** (sew-out simulation) | stitch simulator    | âœ…     | play/pause/rewind, scrub, 0.25Ã—â€“8Ã—, needle-head marker, `Space`                                                    |
 | Real stitch statistics                 | âœ…                  | âœ…     | counts read from the compiled sequence, never estimated                                                            |
 | Validation messages                    | design check        | âœ…     | 14 checks; errors block export                                                                                     |

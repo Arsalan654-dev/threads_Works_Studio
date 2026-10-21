@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { EmbroideryObject, Hoop, Stitch, ThreadColor } from '@threadworks/engine';
 import { DEFAULT_APPLIQUE } from '@threadworks/engine';
-import { isMajorGridLine, hitTest, render, type RenderOptions, type View } from './render.js';
+import {
+  isMajorGridLine,
+  hitTest,
+  render,
+  wheelZoomFactor,
+  type RenderOptions,
+  type View,
+} from './render.js';
 import { createLettering, createObject, rectangleRing } from '../model/defaults.js';
 
 /**
@@ -216,12 +223,99 @@ describe('scene layers', () => {
     expect(count(on, 'stroke')).toBeGreaterThan(count(off, 'stroke'));
   });
 
+  it('outlines an object without filling over its stitches', () => {
+    const objects = [createObject('fill', [rectangleRing(20, 20, 60, 40)])];
+    const ctx = makeCtx();
+    render(
+      ctx,
+      options({
+        objects,
+        showOutlines: true,
+        showStitches: false,
+        hoop: null,
+      }),
+    );
+
+    // A stale fillStyle used to paint a dark silhouette over every object.
+    expect(count(ctx, 'fill')).toBe(0);
+  });
+
   it('always clears the canvas before painting', () => {
     const ctx = makeCtx();
     render(ctx, options());
 
     expect(count(ctx, 'clearRect')).toBe(1);
     expect(ctx.ops.indexOf('clearRect')).toBeLessThan(ctx.ops.indexOf('fillRect'));
+  });
+
+  it('does not draw a white cell lattice over an auto-generated photo', () => {
+    // A photo object is one object per thread colour, with one ring per cell.
+    // Stroking each ring made the generated picture disappear behind a grid.
+    const cells = Array.from({ length: 120 }, (_, i) =>
+      rectangleRing((i % 12) * 5, Math.floor(i / 12) * 5, 4, 4),
+    );
+    const photo = createObject('fill', cells);
+    photo.params = {
+      ...photo.params,
+      photo: { enabled: true, style: 'satin', spacing: 0.4 },
+    };
+
+    const ctx = makeCtx();
+    render(
+      ctx,
+      options({
+        objects: [photo],
+        showOutlines: true,
+        showStitches: false,
+        hoop: null,
+      }),
+    );
+
+    // The hoop field is a fill, not a stroke. With the lattice suppressed there
+    // is no outline stroke at all.
+    expect(count(ctx, 'stroke')).toBe(0);
+  });
+
+  it('still draws a selection box around a photo object', () => {
+    const cells = Array.from({ length: 120 }, (_, i) =>
+      rectangleRing((i % 12) * 5, Math.floor(i / 12) * 5, 4, 4),
+    );
+    const photo = createObject('fill', cells);
+    photo.params = {
+      ...photo.params,
+      photo: { enabled: true, style: 'satin', spacing: 0.4 },
+    };
+
+    const ctx = makeCtx();
+    render(
+      ctx,
+      options({
+        objects: [photo],
+        selection: [photo.id],
+        showOutlines: true,
+        showStitches: false,
+        hoop: null,
+      }),
+    );
+
+    expect(count(ctx, 'strokeRect')).toBe(1);
+  });
+});
+
+describe('wheel zoom', () => {
+  it('zooms in when the wheel turns up and out when it turns down', () => {
+    expect(wheelZoomFactor(-100)).toBeGreaterThan(1);
+    expect(wheelZoomFactor(100)).toBeLessThan(1);
+  });
+
+  it('leaves the view alone for a zero or unusable delta', () => {
+    expect(wheelZoomFactor(0)).toBe(1);
+    expect(wheelZoomFactor(Number.NaN)).toBe(1);
+  });
+
+  it('caps one wheel event so a high-resolution wheel cannot jump', () => {
+    expect(wheelZoomFactor(-10_000)).toBe(2);
+    expect(wheelZoomFactor(10_000)).toBe(0.5);
   });
 });
 

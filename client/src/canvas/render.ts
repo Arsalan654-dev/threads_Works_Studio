@@ -165,6 +165,30 @@ export function zoomAt(view: View, factor: number, screenX: number, screenY: num
   };
 }
 
+/**
+ * Turn a wheel delta into a zoom factor.
+ *
+ * A mouse wheel notch is a large jump (often 100), while a trackpad sends many
+ * small deltas. An exponential curve keeps both feeling proportional: one notch
+ * is about 16%, and a tiny trackpad movement is correspondingly tiny. The
+ * per-event clamp stops an aggressive high-resolution wheel from jumping from
+ * the whole hoop to one stitch in a single tick.
+ */
+export function wheelZoomFactor(deltaY: number): number {
+  if (!Number.isFinite(deltaY)) return 1;
+  return Math.min(2, Math.max(0.5, Math.exp(-deltaY * 0.0015)));
+}
+
+/**
+ * A photo mosaic keeps one ring per cell. Stroking every cell turns the preview
+ * into a white lattice that hides the picture the user just generated; filling
+ * the rings would hide it as well. The selection box still shows the object's
+ * extent when it is selected.
+ */
+function isPhotoObject(obj: EmbroideryObject): boolean {
+  return obj.params.photo?.enabled === true;
+}
+
 const THEME = {
   background: '#1b1d21',
   grid: 'rgba(255,255,255,0.045)',
@@ -211,7 +235,7 @@ export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): v
     const selected = new Set(options.selection);
     // Draw unselected first so the highlighted object sits on top.
     for (const obj of options.objects) {
-      if (selected.has(obj.id)) continue;
+      if (selected.has(obj.id) || isPhotoObject(obj)) continue;
       drawObjectOutline(ctx, obj, view, obj.hidden ? THEME.outlineHidden : THEME.outline, 1);
     }
     for (const obj of options.objects) {
@@ -223,7 +247,9 @@ export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): v
   // Node handles sit above everything so they stay clickable.
   if (options.nodeEdit && !capMode) {
     const obj = options.objects.find((o) => o.id === options.nodeEdit!.objectId);
-    if (obj) drawNodes(ctx, obj, view, options.nodeEdit.nodes);
+    // Every cell would get four handles, which is both unreadable and slow.
+    // The object can still be moved or scaled as a whole.
+    if (obj && !isPhotoObject(obj)) drawNodes(ctx, obj, view, options.nodeEdit.nodes);
   }
 
   ctx.restore();
@@ -712,8 +738,10 @@ function drawObjectOutline(
   ctx.strokeStyle = stroke;
   ctx.lineWidth = lineWidth;
   ctx.setLineDash(obj.hidden ? [4, 4] : []);
-  // even-odd so holes are rendered as holes rather than filled solid.
-  ctx.fill(pathOf(obj.path, view), 'evenodd');
+  // Strokes only. Filling here would paint over the stitches with whatever
+  // fillStyle the previous layer happened to leave behind, turning every
+  // object into a dark silhouette. A compound path's holes are already
+  // readable from its ring strokes.
   ctx.stroke(pathOf(obj.path, view));
   ctx.restore();
 }

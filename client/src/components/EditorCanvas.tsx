@@ -24,6 +24,7 @@ import {
   hitTestSegment,
   render,
   toDesign,
+  wheelZoomFactor,
   zoomAt,
   type RenderOptions,
   type View,
@@ -252,6 +253,9 @@ export function EditorCanvas() {
     };
 
     render(ctx, options);
+    // Exposed for tests and diagnostics; the canvas has no DOM-visible zoom
+    // state of its own because the view lives in a ref.
+    canvas.dataset.scale = viewRef.current.scale.toFixed(3);
 
     // Snap marker: a ring exactly where the point will land. It is painted
     // after the design but before the in-progress outline so the draft line
@@ -369,7 +373,14 @@ export function EditorCanvas() {
 
   useEffect(
     () => () => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        // Clearing the slot matters under StrictMode: React mounts, cleans up
+        // and mounts again in development. A cancelled id left in the slot
+        // would make every later schedule() think a paint was already queued,
+        // leaving the canvas blank until some unrelated redraw.
+        frameRef.current = null;
+      }
     },
     [],
   );
@@ -744,25 +755,32 @@ export function EditorCanvas() {
     if (toolDraws(useDesignStore.getState().tool)) commitDraft();
   };
 
-  const onWheel = (event: React.WheelEvent<HTMLCanvasElement>): void => {
-    // ctrl/cmd+wheel zooms (trackpad pinch arrives the same way); plain wheel
-    // pans vertically so long designs remain navigable without a modifier.
-    const screen = localPoint(event);
+  // The wheel listener is native and non-passive on purpose. React attaches
+  // wheel events passively at the root, so `preventDefault()` there cannot stop
+  // the page or the browser's own pinch zoom from also reacting. Owning the
+  // listener lets the canvas zoom at the pointer without moving the page.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    if (event.ctrlKey || event.metaKey) {
-      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      viewRef.current = zoomAt(viewRef.current, factor, screen.x, screen.y);
-    } else {
-      viewRef.current = {
-        ...viewRef.current,
-        offsetX: viewRef.current.offsetX - event.deltaX,
-        offsetY: viewRef.current.offsetY - event.deltaY,
-      };
-    }
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault();
 
-    event.preventDefault();
-    schedule();
-  };
+      const rect = canvas.getBoundingClientRect();
+      const screenX = Number.isFinite(event.clientX) ? event.clientX - rect.left : rect.width / 2;
+      const screenY = Number.isFinite(event.clientY) ? event.clientY - rect.top : rect.height / 2;
+      // deltaMode is lines (1) or pages (2) on some browsers. Convert both to
+      // the pixel-like units the exponential curve was tuned for.
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
+      const deltaY = event.deltaY * unit;
+
+      viewRef.current = zoomAt(viewRef.current, wheelZoomFactor(deltaY), screenX, screenY);
+      schedule();
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [schedule]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -896,7 +914,6 @@ export function EditorCanvas() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onDoubleClick={onDoubleClick}
-        onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
       {referenceImage && (
