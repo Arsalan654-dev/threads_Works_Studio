@@ -528,6 +528,42 @@ code {
   pointer-events: none;
 }
 
+/* Compact always-visible control for the imported picture. The full controls
+   live in the right inspector; this keeps the opacity reachable while drawing. */
+.canvas-reference-hud {
+  position: absolute;
+  top: 26px;
+  left: 26px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(20, 22, 26, 0.9);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+  font-size: 11px;
+}
+
+.canvas-reference-hud input[type='range'] {
+  width: 110px;
+}
+
+.reference-hud-label {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.reference-hud-value {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+}
+
 /* --- stitch player -------------------------------------------------------- */
 
 .stitch-player {
@@ -927,6 +963,39 @@ code {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+}
+
+.trace-dialog {
+  overflow-y: auto;
+}
+
+.trace-source-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 34vh;
+  object-fit: contain;
+  image-rendering: auto;
+  border-radius: 4px;
+}
+
+.trace-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(79, 140, 255, 0.06);
+}
+
+.trace-question {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trace-choice .button-row button {
+  min-width: 150px;
 }
 
 .trace-dialog .trace-field > span:first-child {

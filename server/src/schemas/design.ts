@@ -23,7 +23,12 @@ export const PointSchema = z.object({
 export const RingSchema = z.array(PointSchema).min(3, 'A ring needs at least 3 points');
 
 export const CompoundPathSchema = z.object({
-  rings: z.array(RingSchema).max(64, 'A shape may have at most 64 rings'),
+  // Most shapes have one outer ring and a handful of holes. A photo-stitch
+  // object is deliberately different: it carries one small square per cell,
+  // grouped by thread colour, so a detailed picture can legitimately hold
+  // thousands of rings in a single object. The request-body limit still bounds
+  // the total payload.
+  rings: z.array(RingSchema).max(20_000, 'A shape may have at most 20,000 rings'),
 });
 
 export const BoundsSchema = z.object({
@@ -413,6 +418,31 @@ export const MotifPresetUpdateSchema = MotifPresetCreateSchema.partial();
 export const UnitSchema = z.enum(['mm', 'cm', 'in']);
 
 /**
+ * A picture stored with the project as a clear tracing guide.
+ *
+ * Only compressed data URLs are accepted. The size ceiling keeps a project
+ * within the hosted 4 MB request limit, and the geometry is bounded like any
+ * other design coordinate so a malformed guide cannot place the canvas
+ * somewhere unreachable.
+ */
+export const ReferenceImageSchema = z
+  .object({
+    dataUrl: z
+      .string()
+      .max(2_000_000, 'The tracing guide is too large')
+      .regex(/^data:image\/(png|jpeg|webp);base64,/i, 'The tracing guide must be an image data URL'),
+    name: z.string().trim().max(200).default('Reference image'),
+    x: z.number().finite().min(-10_000).max(10_000),
+    y: z.number().finite().min(-10_000).max(10_000),
+    width: z.number().finite().min(1).max(5000),
+    height: z.number().finite().min(1).max(5000),
+    opacity: z.number().finite().min(0).max(1),
+    visible: z.boolean(),
+  })
+  .nullable()
+  .default(null);
+
+/**
  * The whole editable design.
  *
  * `version` is an optimistic-concurrency token: the client sends the version
@@ -433,6 +463,8 @@ export const DesignDocumentSchema = z.object({
       compensate: z.boolean(),
     })
     .default({ enabled: false, radiusMm: 90, compensate: true }),
+  /** Picture shown under the artwork for tracing; never sewn or exported. */
+  referenceImage: ReferenceImageSchema,
 });
 
 export const ProjectCreateSchema = z.object({

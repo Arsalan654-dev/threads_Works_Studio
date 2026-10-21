@@ -9,6 +9,7 @@
  */
 
 import type { CapWrapSettings, EmbroideryObject, ThreadColor } from '@threadworks/engine';
+import type { ReferenceImage } from '../store/designStore.js';
 
 export interface ApiErrorBody {
   code: string;
@@ -62,6 +63,8 @@ export interface DesignPayload {
   objects: EmbroideryObject[];
   threadPalette: ThreadColor[];
   capWrap?: CapWrapSettings;
+  /** Clear picture used as a tracing guide; absent on older projects. */
+  referenceImage?: ReferenceImage | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

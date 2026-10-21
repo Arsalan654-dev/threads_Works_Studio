@@ -126,6 +126,46 @@ export interface ArtworkRequest {
 }
 
 /**
+ * A picture kept under the artwork as a tracing guide.
+ *
+ * It is document data, not a stitch object: it is never compiled, exported or
+ * counted by validation. The compressed data URL is stored with the project so
+ * reopening a design still shows the picture the user was drawing over.
+ */
+export interface ReferenceImage {
+  dataUrl: string;
+  name: string;
+  /** Top-left corner in design millimetres. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** 0..1; the guide can be faded without changing the stitch preview. */
+  opacity: number;
+  visible: boolean;
+}
+
+/** What an image import needs to place a guide; the store centres it. */
+export interface ReferenceImagePlacement {
+  dataUrl: string;
+  name: string;
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  opacity?: number;
+  visible?: boolean;
+}
+
+/** The compressed picture attached to an auto-digitized or photo-stitched design. */
+export interface ReferenceImageAttachment {
+  dataUrl: string;
+  name: string;
+  opacity?: number;
+  visible?: boolean;
+}
+
+/**
  * How several selected shapes can be combined.
  *
  * `weld` merges their outlines, `combine` keeps the area covered an odd number
@@ -150,6 +190,8 @@ export interface DesignState {
   objects: EmbroideryObject[];
   threadPalette: ThreadColor[];
   capWrap: CapWrapSettings;
+  /** Clear picture shown under the artwork, never sewn. */
+  referenceImage: ReferenceImage | null;
 }
 
 export interface CompiledDesign {
@@ -230,6 +272,7 @@ interface DesignStore {
     objects: EmbroideryObject[];
     threadPalette: ThreadColor[];
     capWrap?: CapWrapSettings;
+    referenceImage?: ReferenceImage | null;
   }) => void;
 
   // --- editing ---
@@ -478,6 +521,20 @@ interface DesignStore {
   /** Change cap-frame settings without touching geometry. */
   setCapWrap: (patch: Partial<CapWrapSettings>) => void;
 
+  /**
+   * Put a picture under the artwork as a tracing guide.
+   *
+   * Replaces any guide already present. It is centred unless `x`/`y` are
+   * given, and it never becomes an object or reaches an encoder.
+   */
+  placeReferenceImage: (placement: ReferenceImagePlacement) => void;
+
+  /** Move, resize or fade the existing guide. Does not affect the stitches. */
+  updateReferenceImage: (patch: Partial<Omit<ReferenceImage, 'dataUrl' | 'name'>>) => void;
+
+  /** Remove the tracing guide while leaving the sewn objects untouched. */
+  removeReferenceImage: () => void;
+
   /** Assign every selected object to the same 1-based production machine. */
   assignMachineToSelected: (machine: number) => void;
 
@@ -529,6 +586,11 @@ export interface DigitizeOptions extends AutoDigitizeOptions {
   spacing?: number;
   /** Replace the current design (default) or add the traced objects to it. */
   mode?: 'replace' | 'add';
+  /**
+   * Keep the source picture behind the result at the traced size, so the
+   * imported image and the generated stitches line up exactly.
+   */
+  reference?: ReferenceImageAttachment;
 }
 
 export interface DigitizeSummary {
@@ -544,6 +606,8 @@ export interface DigitizeSummary {
 /** Photo planning options plus placement mode, mirrored from the dialog. */
 export interface PhotoStitchRequest extends PhotoStitchOptions {
   mode?: 'replace' | 'add';
+  /** Keep the source photo behind the mosaic at the same size and place. */
+  reference?: ReferenceImageAttachment;
 }
 
 export interface PhotoStitchSummary {
@@ -649,6 +713,28 @@ function cloneDesign(design: DesignState): DesignState {
     })),
     threadPalette: design.threadPalette.map((c) => ({ ...c })),
     capWrap: { ...design.capWrap },
+    referenceImage: design.referenceImage ? { ...design.referenceImage } : null,
+  };
+}
+
+/** Build a guide record aligned with a generated design's bounding box. */
+function referenceAt(
+  attachment: ReferenceImageAttachment,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  defaultOpacity: number,
+): ReferenceImage {
+  return {
+    dataUrl: attachment.dataUrl,
+    name: attachment.name,
+    x,
+    y,
+    width,
+    height,
+    opacity: clampNumber(attachment.opacity ?? defaultOpacity, 0, 1),
+    visible: attachment.visible ?? true,
   };
 }
 
@@ -772,6 +858,7 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           objects: input.objects,
           threadPalette: input.threadPalette,
           capWrap: { ...DEFAULT_CAP_WRAP, ...(input.capWrap ?? {}) },
+          referenceImage: input.referenceImage ? { ...input.referenceImage } : null,
         },
         selection: [],
         pendingEntryExit: null,
@@ -1921,6 +2008,51 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
       mutate((d) => ({ ...d, capWrap: { ...d.capWrap, ...patch } }));
     },
 
+    placeReferenceImage: (placement) => {
+      const width = Math.max(1, placement.width);
+      const height = Math.max(1, placement.height);
+      mutate((d) => ({
+        ...d,
+        referenceImage: {
+          dataUrl: placement.dataUrl,
+          name: placement.name,
+          x: placement.x ?? Math.max(0, (d.width - width) / 2),
+          y: placement.y ?? Math.max(0, (d.height - height) / 2),
+          width,
+          height,
+          opacity: clampNumber(placement.opacity ?? 0.85, 0, 1),
+          visible: placement.visible ?? true,
+        },
+      }));
+    },
+
+    updateReferenceImage: (patch) => {
+      if (!get().design.referenceImage) return;
+      // Guides are reference material, not sewn geometry. Dragging an opacity
+      // slider should not fill the undo stack with one step per pixel; placing
+      // and removing the guide remain undoable.
+      mutate(
+        (d) => {
+          if (!d.referenceImage) return d;
+          const next = { ...d.referenceImage, ...patch };
+          return {
+            ...d,
+            referenceImage: {
+              ...next,
+              width: Math.max(1, next.width),
+              height: Math.max(1, next.height),
+              opacity: clampNumber(next.opacity, 0, 1),
+            },
+          };
+        },
+        { history: false },
+      );
+    },
+
+    removeReferenceImage: () => {
+      mutate((d) => (d.referenceImage === null ? d : { ...d, referenceImage: null }));
+    },
+
     assignMachineToSelected: (machine) => {
       const selected = new Set(get().selection);
       if (selected.size === 0) return;
@@ -2047,7 +2179,8 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
 
       mutate((d) => {
         // Centre the traced art in the field so it lands inside the hoop
-        // instead of hanging off the origin.
+        // instead of hanging off the origin. The guide uses the same box, so
+        // the picture and the generated stitches line up exactly.
         const offsetX = Math.max(0, (d.width - result.widthMm) / 2);
         const offsetY = Math.max(0, (d.height - result.heightMm) / 2);
 
@@ -2065,8 +2198,21 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           };
         });
 
+        const referenceImage = options.reference
+          ? referenceAt(
+              options.reference,
+              offsetX,
+              offsetY,
+              result.widthMm,
+              result.heightMm,
+              0.28,
+            )
+          : options.mode === 'add'
+            ? d.referenceImage
+            : null;
+
         if (options.mode === 'add') {
-          return { ...d, objects: [...d.objects, ...objects] };
+          return { ...d, objects: [...d.objects, ...objects], referenceImage };
         }
         // Replacing means the palette has to travel with the objects, or every
         // colourIndex would point at somebody else's thread.
@@ -2074,6 +2220,7 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           ...d,
           objects,
           threadPalette: result.palette.map((c) => ({ ...c })),
+          referenceImage,
         };
       });
 
@@ -2131,10 +2278,17 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           code: `PHOTO${baseIndex + index + 1}`,
         }));
 
+        const referenceImage = options.reference
+          ? referenceAt(options.reference, offsetX, offsetY, plan.widthMm, plan.heightMm, 0.28)
+          : add
+            ? d.referenceImage
+            : null;
+
         return {
           ...d,
           objects: add ? [...d.objects, ...objects] : objects,
           threadPalette: add ? [...d.threadPalette, ...palette] : palette,
+          referenceImage,
         };
       });
 

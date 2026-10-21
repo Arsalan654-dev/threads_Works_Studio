@@ -25,6 +25,7 @@ function designPayload(design: DesignState) {
     objects: design.objects,
     threadPalette: design.threadPalette,
     capWrap: design.capWrap,
+    referenceImage: design.referenceImage,
   };
 }
 

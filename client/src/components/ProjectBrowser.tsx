@@ -86,6 +86,7 @@ export function ProjectBrowser({ onClose, onOpened }: Props): React.ReactElement
       objects: fresh.design.objects,
       threadPalette: fresh.design.threadPalette,
       capWrap: fresh.design.capWrap,
+      referenceImage: fresh.design.referenceImage ?? null,
     });
   };
 

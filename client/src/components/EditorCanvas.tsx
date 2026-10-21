@@ -62,11 +62,13 @@ export function EditorCanvas() {
   const designWidth = useDesignStore((s) => s.design.width);
   const designHeight = useDesignStore((s) => s.design.height);
   const hoopId = useDesignStore((s) => s.design.hoopId);
+  const referenceImage = useDesignStore((s) => s.design.referenceImage);
   const selection = useDesignStore((s) => s.selection);
   const tool = useDesignStore((s) => s.tool);
   const continuingId = useDesignStore((s) => s.continuingId);
   const armed = useDesignStore((s) => s.pendingEntryExit);
   const rev = useDesignStore((s) => s.rev);
+  const [referenceElement, setReferenceElement] = useState<HTMLImageElement | null>(null);
 
   const showGrid = referenceStore((s) => s.settings?.showGrid ?? true);
   const showRulers = referenceStore((s) => s.settings?.showRulers ?? true);
@@ -81,6 +83,34 @@ export function EditorCanvas() {
   const preview3d = referenceStore((s) => s.settings?.preview3d ?? false);
   const hoopPresets = referenceStore((s) => s.hoops);
   const capWrap = useDesignStore((s) => s.design.capWrap);
+
+  // Browsers load a data URL asynchronously. The guide is kept as an element
+  // so every repaint can draw it without decoding the picture again.
+  useEffect(() => {
+    const dataUrl = referenceImage?.dataUrl;
+    if (!dataUrl) {
+      setReferenceElement(null);
+      return;
+    }
+    if (typeof Image !== 'function') {
+      setReferenceElement(null);
+      return;
+    }
+    const image = new Image();
+    let cancelled = false;
+    image.onload = () => {
+      if (!cancelled) setReferenceElement(image);
+    };
+    image.onerror = () => {
+      if (!cancelled) setReferenceElement(null);
+    };
+    image.src = dataUrl;
+    return () => {
+      cancelled = true;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [referenceImage?.dataUrl]);
 
   // Playback is read fresh inside `paint` rather than threaded through props,
   // but these two are subscribed so React re-renders and schedules a repaint
@@ -202,6 +232,18 @@ export function EditorCanvas() {
       render3d: preview3d,
       capWrap: capWrap.enabled ? capWrap : null,
       capCenterX: hoop ? hoop.width / 2 : designWidth / 2,
+      referenceImage:
+        referenceElement && referenceImage
+          ? {
+              image: referenceElement,
+              x: referenceImage.x,
+              y: referenceImage.y,
+              width: referenceImage.width,
+              height: referenceImage.height,
+              opacity: referenceImage.opacity,
+              visible: referenceImage.visible,
+            }
+          : null,
       gridSize,
       gridMajorSize,
       // Outside playback `active` is false and the full sequence shows.
@@ -268,6 +310,8 @@ export function EditorCanvas() {
     showUnderlay,
     preview3d,
     capWrap,
+    referenceElement,
+    referenceImage,
     gridSize,
     gridMajorSize,
     draft,
@@ -855,6 +899,44 @@ export function EditorCanvas() {
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
+      {referenceImage && (
+        <div
+          className="canvas-reference-hud"
+          data-testid="reference-hud"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <span className="reference-hud-label">Reference</span>
+          <button
+            type="button"
+            onClick={() =>
+              useDesignStore
+                .getState()
+                .updateReferenceImage({ visible: !referenceImage.visible })
+            }
+            data-testid="reference-hud-toggle"
+            title={referenceImage.visible ? 'Hide the tracing guide' : 'Show the tracing guide'}
+          >
+            {referenceImage.visible ? 'Hide' : 'Show'}
+          </button>
+          <input
+            type="range"
+            min="0.05"
+            max="1"
+            step="0.05"
+            value={referenceImage.opacity}
+            aria-label="Reference image opacity"
+            data-testid="reference-hud-opacity"
+            onChange={(e) =>
+              useDesignStore
+                .getState()
+                .updateReferenceImage({ opacity: Number(e.target.value) })
+            }
+          />
+          <span className="reference-hud-value">
+            {Math.round(referenceImage.opacity * 100)}%
+          </span>
+        </div>
+      )}
       {draft.length > 0 && (
         <div className="canvas-hint">
           {draft.length} point{draft.length === 1 ? '' : 's'} - double-click or Enter to finish, Esc

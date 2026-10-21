@@ -228,6 +228,7 @@ export function createEmptyDesign(options: NewDesignOptions = {}) {
     objects: [] as EmbroideryObject[],
     threadPalette: STARTER_PALETTE.map((c) => ({ ...c })),
     capWrap: { ...DEFAULT_CAP_WRAP },
+    referenceImage: null,
     name: options.name ?? 'Untitled design',
   };
 }

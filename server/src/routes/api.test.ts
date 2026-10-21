@@ -588,6 +588,75 @@ describe('projects', () => {
       radiusMm: 90,
       compensate: true,
     });
+    expect(fetched.body.design.referenceImage).toBeNull();
+  });
+
+  it('round-trips a tracing guide and keeps it out of the stitch objects', async () => {
+    const design = {
+      ...sampleDesign(),
+      referenceImage: {
+        dataUrl: 'data:image/webp;base64,UklGRg==',
+        name: 'shirt.webp',
+        x: 10,
+        y: 12,
+        width: 80,
+        height: 60,
+        opacity: 0.75,
+        visible: true,
+      },
+    };
+
+    const created = await request(app)
+      .post('/api/projects')
+      .send({ name: 'With guide', design });
+    expect(created.status).toBe(201);
+    expect(created.body.design.objects).toHaveLength(1);
+    expect(created.body.design.referenceImage.name).toBe('shirt.webp');
+
+    const fetched = await request(app).get(`/api/projects/${created.body.id}`);
+    expect(fetched.body.design.referenceImage).toEqual(design.referenceImage);
+  });
+
+  it('refuses a tracing guide that is not an image data URL', async () => {
+    const design = {
+      ...sampleDesign(),
+      referenceImage: {
+        dataUrl: 'https://example.com/photo.jpg',
+        name: 'remote',
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        opacity: 1,
+        visible: true,
+      },
+    };
+
+    const res = await request(app)
+      .post('/api/projects')
+      .send({ name: 'Bad guide', design });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('accepts a photo-stitch object with one ring per cell', async () => {
+    const design = sampleDesign();
+    // Photo objects are deliberately many-ring: the old 64-ring ceiling made a
+    // real mosaic impossible to save even though it compiled and exported.
+    design.objects[0]!.path.rings = Array.from({ length: 120 }, (_, i) => [
+      { x: i, y: 0 },
+      { x: i + 0.9, y: 0 },
+      { x: i + 0.9, y: 0.9 },
+      { x: i, y: 0.9 },
+    ]);
+
+    const created = await request(app)
+      .post('/api/projects')
+      .send({ name: 'Mosaic', design });
+    expect(created.status).toBe(201);
+
+    const fetched = await request(app).get(`/api/projects/${created.body.id}`);
+    expect(fetched.body.design.objects[0].path.rings).toHaveLength(120);
   });
 });
 

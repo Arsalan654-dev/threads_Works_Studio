@@ -42,6 +42,9 @@ function makeCtx() {
     lineTo: record('lineTo'),
     quadraticCurveTo: record('quadraticCurveTo'),
     arc: record('arc'),
+    rect: record('rect'),
+    clip: record('clip'),
+    drawImage: record('drawImage'),
     fill: record('fill'),
     stroke: record('stroke'),
     setLineDash: record('setLineDash'),
@@ -346,5 +349,50 @@ describe('Phase N/O preview passes', () => {
     expect(cap.texts.some((text) => text.includes('Cap crown preview'))).toBe(true);
     // The crown is drawn instead of the rectangular hoop field.
     expect(count(cap, 'quadraticCurveTo')).toBeGreaterThan(0);
+  });
+});
+
+describe('reference image', () => {
+  const guide = {
+    image: {} as CanvasImageSource,
+    x: 10,
+    y: 12,
+    width: 80,
+    height: 50,
+    opacity: 0.8,
+    visible: true,
+  };
+
+  it('paints a visible guide under the stitches', () => {
+    const ctx = makeCtx();
+    render(ctx, options({ referenceImage: guide }));
+
+    expect(count(ctx, 'drawImage')).toBe(1);
+    // It is clipped to its own rectangle rather than painting over the rulers.
+    expect(count(ctx, 'clip')).toBe(1);
+  });
+
+  it('leaves the guide out when hidden or transparent', () => {
+    const hidden = makeCtx();
+    render(hidden, options({ referenceImage: { ...guide, visible: false } }));
+    expect(count(hidden, 'drawImage')).toBe(0);
+
+    const transparent = makeCtx();
+    render(transparent, options({ referenceImage: { ...guide, opacity: 0 } }));
+    expect(count(transparent, 'drawImage')).toBe(0);
+  });
+
+  it('does not project a flat guide onto the cap crown', () => {
+    const ctx = makeCtx();
+    render(
+      ctx,
+      options({
+        referenceImage: guide,
+        capWrap: { enabled: true, radiusMm: 90, compensate: true },
+        capCenterX: 90,
+      }),
+    );
+
+    expect(count(ctx, 'drawImage')).toBe(0);
   });
 });

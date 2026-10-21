@@ -86,6 +86,7 @@ export function RightPanel(): React.ReactElement {
   return (
     <aside className="right-panel">
       <HoopSection hoopId={hoopId} />
+      <ReferenceSection />
       <MultiHoopSection />
       <SequencingSection />
 
@@ -500,6 +501,135 @@ function HoopSection({ hoopId }: { hoopId: string | null }): React.ReactElement 
           )}
         </>
       )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The imported picture under the artwork.
+ *
+ * The controls deliberately speak about the guide, not the design: the picture
+ * is never sewn, counted or exported. Width keeps the source aspect ratio, so
+ * a photograph cannot be accidentally stretched while it is being traced.
+ */
+function ReferenceSection(): React.ReactElement | null {
+  const reference = useDesignStore((s) => s.design.referenceImage);
+  const designWidth = useDesignStore((s) => s.design.width);
+  const designHeight = useDesignStore((s) => s.design.height);
+  const update = useDesignStore((s) => s.updateReferenceImage);
+  const remove = useDesignStore((s) => s.removeReferenceImage);
+
+  if (!reference) return null;
+
+  const ratio = reference.width > 0 ? reference.height / reference.width : 1;
+  const setWidth = (value: number): void => {
+    const width = Math.max(1, Math.min(5000, Number.isFinite(value) ? value : reference.width));
+    update({ width, height: width * ratio });
+  };
+  const center = (): void => {
+    update({
+      x: (designWidth - reference.width) / 2,
+      y: (designHeight - reference.height) / 2,
+    });
+  };
+  const fit = (): void => {
+    const width = Math.max(1, Math.min(designWidth, designHeight / ratio) * 0.92);
+    const height = width * ratio;
+    update({
+      width,
+      height,
+      x: (designWidth - width) / 2,
+      y: (designHeight - height) / 2,
+    });
+  };
+
+  return (
+    <section className="panel-section" data-testid="reference-section">
+      <h2>Reference image</h2>
+      <p className="muted small" title={reference.name}>
+        {reference.name}
+      </p>
+
+      <label className="field checkbox">
+        <input
+          type="checkbox"
+          checked={reference.visible}
+          onChange={(e) => update({ visible: e.target.checked })}
+          data-testid="reference-visible"
+        />
+        <span>Show under the artwork</span>
+      </label>
+
+      <label className="field">
+        <span>Opacity</span>
+        <input
+          type="range"
+          min="0.05"
+          max="1"
+          step="0.05"
+          value={reference.opacity}
+          onChange={(e) => update({ opacity: Number(e.target.value) })}
+          data-testid="reference-opacity"
+        />
+        <small className="muted">{Math.round(reference.opacity * 100)}%</small>
+      </label>
+
+      <label className="field">
+        <span>Width (mm)</span>
+        <input
+          type="number"
+          min="1"
+          max="5000"
+          step="1"
+          value={Math.round(reference.width * 10) / 10}
+          onChange={(e) => setWidth(Number(e.target.value))}
+          data-testid="reference-width"
+        />
+        <small className="muted">
+          Height follows the picture ratio: {reference.height.toFixed(1)} mm
+        </small>
+      </label>
+
+      <div className="field-pair">
+        <label className="field">
+          <span>X (mm)</span>
+          <input
+            type="number"
+            step="1"
+            value={Math.round(reference.x * 10) / 10}
+            onChange={(e) => update({ x: Number(e.target.value) || 0 })}
+            data-testid="reference-x"
+          />
+        </label>
+        <label className="field">
+          <span>Y (mm)</span>
+          <input
+            type="number"
+            step="1"
+            value={Math.round(reference.y * 10) / 10}
+            onChange={(e) => update({ y: Number(e.target.value) || 0 })}
+            data-testid="reference-y"
+          />
+        </label>
+      </div>
+
+      <div className="button-row">
+        <button type="button" onClick={center} data-testid="reference-center">
+          Center
+        </button>
+        <button type="button" onClick={fit} data-testid="reference-fit">
+          Fit to hoop
+        </button>
+        <button type="button" onClick={remove} data-testid="reference-remove">
+          Remove
+        </button>
+      </div>
+
+      <p className="muted small">
+        This is a tracing guide only. It is not sewn, exported or included in the stitch video.
+      </p>
     </section>
   );
 }

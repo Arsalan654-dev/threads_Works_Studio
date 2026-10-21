@@ -69,8 +69,11 @@ npm run lint
   thread legend.
 - **Transforms and grouping** â€” flip, rotate, scale, group / ungroup, node
   editing.
-- **Auto-digitizing from a photo** â€” colour reduction, outline tracing with
-  holes, per-shape fill angle; also plain **image tracing**.
+- **Image import, tracing and auto-stitching** - place a clear photo or logo as
+  a stored reference under the canvas and draw over it with any tool, or answer
+  the auto-generate prompt and choose a size. Photographs become a full-colour
+  photo mosaic; logos can use colour reduction, outline tracing with holes and
+  per-shape fill angle instead.
 - **Thread palette** â€” create, edit, recolour and reorder colours; pick from the
   seeded "Basic 18" palette; blend two or more fills.
 - **Hoops** â€” 8 built-in hoops including a round frame and a cap frame, an

@@ -905,38 +905,73 @@ back, converts it to a DST, and re-imports the result.
 
 ---
 
-## 8. Tracing an image
+## 8. Importing and tracing an image
 
-**Trace image** in the top bar turns a photo or logo into fills.
+**Trace image** in the top bar brings a photo or logo into the design. The
+picture can either stay as a clear guide that you draw over, or be turned into
+stitches automatically.
+
+### 8.1 Use the picture as a tracing guide
 
 1. Pick a file (PNG, JPEG, anything the browser can decode).
-2. The preview shows exactly the colours the tracer will use. If the result
-   looks too flat, raise **Colours**; if it looks noisy, lower **Detail**.
-3. **Width** sets the finished size in millimetres; the height follows the
-   image's proportions.
-4. **Density** is the fill spacing in mm — smaller is denser and sews slower.
-5. **Trace**.
+2. Choose **No - use as tracing guide**.
+3. Set **Width**; the height follows the picture's proportions. Choose the
+   opacity that is comfortable for you.
+4. **Place reference image**.
 
-What it does, in order: reduce the image to your colour count, treat a solid
-surround as background if **Ignore background** is ticked, walk each remaining
-colour's outline (holes included), drop anything too small or too thin, and
-build one fill per region with its stitch direction along that shape's long
-axis.
+The picture now appears at full clarity on the canvas, underneath the artwork.
+Pick any drawing tool — complex fill, run, bean, lettering, motifs — and draw
+over it. The image is only a guide: it is never compiled, sewn or exported.
 
-The traced art **replaces** the current design and is centred in the field.
-One **Undo** brings the previous design straight back.
+The **Reference image** panel on the right can fade, show/hide, resize, move or
+remove the guide at any time. Changes to the guide do not change the stitches.
+The small **Reference** control at the top-left of the canvas offers the same
+show/hide and opacity while you work.
+
+### 8.2 Auto-generate stitches
+
+1. Pick the picture, then choose **Yes - auto stitch**.
+2. Choose a **Method**:
+   - **Photo mosaic** is the right choice for photographs. It turns the picture
+     into a grid of small satin cells using the image's own colours.
+   - **Auto trace** is for logos and flat artwork. It separates colours into
+     editable fills with holes and clean outlines.
+3. Set **Width** (height follows the proportions), **Colours** and **Detail**.
+   The dialog shows the resulting cell count before anything is committed.
+4. Leave **Keep the source picture behind the stitches** ticked to compare the
+   result with the original.
+5. **Generate photo stitch** or **Generate stitches**.
+
+The generated design replaces the current design and is centred in the field.
+One **Undo** brings the previous design back. The source picture is stored in
+the project at the same size and position, so it still lines up after saving
+and reopening. It can be hidden, faded or removed from the **Reference image**
+panel.
+
+Every generated object is ordinary editable geometry: all export formats,
+section/machine splitting, validation and **Stitch video** work exactly as they
+do for hand-drawn artwork.
+
+For **Auto trace**, the engine reduces the image to your colour count, treats a
+solid surround as background if **Ignore background** is ticked, walks each
+remaining colour's outline (holes included), drops anything too small or too
+thin, and builds one fill per region with its stitch direction along that
+shape's long axis.
 
 The toast afterwards reports what happened, including how many regions were
 ignored for being tiny. If it says nothing to sew, lower the colour count or
 pick the _Fine_ detail level.
 
-Preparing an image well matters more than the settings:
+### 8.3 Preparing the picture
 
-- Crop it first — whatever is in the frame gets traced.
+- Crop it first — whatever is in the frame is traced or placed.
 - Straighten it. The tracer has no rotation or perspective correction.
-- Photos work best with soft, well-lit subjects; hard shadows trace as extra
-  colour regions.
-- A PNG with a transparent background beats a white one: nothing to detect.
+- Photos look best in **Photo mosaic**; **Auto trace** produces a deliberately
+  flat, poster-like result.
+- For a logo, a PNG with a transparent background beats a white one: there is
+  no surround to remove.
+- Very large pictures are downscaled for tracing and for the stored guide, but
+  the on-canvas width in millimetres is always the size you choose.
 
 ---
 

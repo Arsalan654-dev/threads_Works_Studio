@@ -83,6 +83,22 @@ export interface RenderOptions {
     /** Selected nodes, as ring index + point index. */
     nodes: { ring: number; index: number }[];
   } | null;
+  /**
+   * Clear photograph or logo painted under the stitches as a tracing guide.
+   *
+   * The loaded image element is supplied by the canvas component; this module
+   * stays DOM-free apart from the 2D context it is handed. The guide is purely
+   * visual and is never part of the stitch sequence.
+   */
+  referenceImage?: {
+    image: CanvasImageSource;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    opacity: number;
+    visible: boolean;
+  } | null;
 }
 
 export const MIN_SCALE = 0.1;
@@ -179,6 +195,7 @@ export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): v
   } else {
     drawHoop(ctx, options);
     if (options.showGrid) drawGrid(ctx, options);
+    drawReferenceImage(ctx, options);
   }
 
   // Appliqué patches read as fabric, not as empty space with a border around
@@ -367,6 +384,40 @@ function drawGrid(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
   ctx.lineWidth = 1;
   const tl = toScreen({ x: 0, y: 0 }, view);
   ctx.strokeRect(tl.x + 0.5, tl.y + 0.5, designWidth * view.scale, designHeight * view.scale);
+  ctx.restore();
+}
+
+/**
+ * Paint the imported picture under the artwork.
+ *
+ * Grid lines sit below it deliberately: a photograph is easier to trace when
+ * the guide is not criss-crossed by the grid, and the grid is still available
+ * by turning the guide off. The picture is clipped to its own rectangle so a
+ * zoomed-in view cannot paint over the rulers or the surrounding workspace.
+ */
+function drawReferenceImage(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
+  const reference = options.referenceImage;
+  if (!reference || !reference.visible || reference.opacity <= 0) return;
+  const { view } = options;
+  const topLeft = toScreen({ x: reference.x, y: reference.y }, view);
+  const width = reference.width * view.scale;
+  const height = reference.height * view.scale;
+  if (width < 1 || height < 1) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(topLeft.x, topLeft.y, width, height);
+  ctx.clip();
+  ctx.globalAlpha = Math.min(1, Math.max(0, reference.opacity));
+  ctx.drawImage(reference.image, topLeft.x, topLeft.y, width, height);
+  ctx.restore();
+
+  // A hairline keeps the picture's edge legible when it is faded right down.
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 4]);
+  ctx.strokeRect(topLeft.x + 0.5, topLeft.y + 0.5, width, height);
   ctx.restore();
 }
 

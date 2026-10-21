@@ -1255,6 +1255,58 @@ describe('image tracing', () => {
     expect(useDesignStore.getState().design.objects).toEqual(before.objects);
     expect(useDesignStore.getState().design.threadPalette).toEqual(before.threadPalette);
   });
+
+  it('keeps the source picture aligned with the generated trace', () => {
+    useDesignStore.getState().digitizeImage(twoToneImage(), {
+      colorCount: 4,
+      widthMm: 40,
+      reference: {
+        dataUrl: 'data:image/png;base64,AAAA',
+        name: 'shirt.png',
+        opacity: 0.7,
+      },
+    });
+
+    const design = useDesignStore.getState().design;
+    const reference = design.referenceImage;
+    expect(reference).not.toBeNull();
+    expect(reference?.name).toBe('shirt.png');
+    expect(reference?.opacity).toBe(0.7);
+
+    const bounds = boundsOfObjects(design.objects);
+    expect(reference?.x).toBeCloseTo(bounds.minX, 5);
+    expect(reference?.y).toBeCloseTo(bounds.minY, 5);
+    expect(reference?.width).toBeCloseTo(bounds.maxX - bounds.minX, 5);
+    expect(reference?.height).toBeCloseTo(bounds.maxY - bounds.minY, 5);
+  });
+
+  it('places, fades, resizes and removes a tracing guide without touching stitches', () => {
+    useDesignStore.getState().addObject(createObject('fill', [rectangleRing(0, 0, 10, 10)]));
+    const objects = useDesignStore.getState().design.objects;
+
+    useDesignStore.getState().placeReferenceImage({
+      dataUrl: 'data:image/png;base64,AAAA',
+      name: 'logo.png',
+      width: 40,
+      height: 20,
+    });
+
+    const placed = useDesignStore.getState().design.referenceImage;
+    expect(placed).not.toBeNull();
+    // Centred in the 180 x 130 field.
+    expect(placed?.x).toBe(70);
+    expect(placed?.y).toBe(55);
+
+    useDesignStore.getState().updateReferenceImage({ opacity: 0.4, width: 60, height: 30 });
+    const updated = useDesignStore.getState().design.referenceImage;
+    expect(updated?.opacity).toBe(0.4);
+    expect(updated?.width).toBe(60);
+    // The guide is not an embroidery object.
+    expect(useDesignStore.getState().design.objects).toEqual(objects);
+
+    useDesignStore.getState().removeReferenceImage();
+    expect(useDesignStore.getState().design.referenceImage).toBeNull();
+  });
 });
 
 describe('auto-hooping', () => {
@@ -2380,6 +2432,58 @@ describe('photo stitch', () => {
     expect(compiled.sequence.stitches.length).toBeGreaterThan(100);
     expect(compiled.validation.issues.filter((i) => i.severity === 'error')).toEqual([]);
     expect(compiled.sequence.colorCount).toBe(2);
+  });
+
+  it('keeps the source photo behind the mosaic at the same box', () => {
+    useDesignStore.getState().photoStitch(twoToneImage(), {
+      widthMm: 20,
+      cellMm: 2,
+      colorCount: 2,
+      reference: { dataUrl: 'data:image/png;base64,AAAA', name: 'photo.png' },
+    });
+
+    const design = useDesignStore.getState().design;
+    const guide = design.referenceImage;
+    const bounds = boundsOfObjects(design.objects);
+    expect(guide?.name).toBe('photo.png');
+    expect(guide?.x).toBeCloseTo(bounds.minX, 5);
+    expect(guide?.y).toBeCloseTo(bounds.minY, 5);
+    expect(guide?.width).toBeCloseTo(bounds.maxX - bounds.minX, 5);
+    expect(guide?.height).toBeCloseTo(bounds.maxY - bounds.minY, 5);
+
+    // Replacing the design without a new guide removes the old one.
+    useDesignStore.getState().photoStitch(twoToneImage(), {
+      widthMm: 20,
+      cellMm: 2,
+      colorCount: 2,
+    });
+    expect(useDesignStore.getState().design.referenceImage).toBeNull();
+  });
+
+  it('exports a photo mosaic to every machine format', () => {
+    useDesignStore
+      .getState()
+      .photoStitch(twoToneImage(), { widthMm: 20, cellMm: 2, colorCount: 2 });
+
+    const store = useDesignStore.getState();
+    expect(store.exportDst().bytes.length).toBeGreaterThan(0);
+    expect(store.exportPes().bytes.length).toBeGreaterThan(0);
+    expect(store.exportExp().bytes.length).toBeGreaterThan(0);
+    expect(store.exportJef().bytes.length).toBeGreaterThan(0);
+    expect(store.exportVp3().bytes.length).toBeGreaterThan(0);
+    expect(store.exportTbf().bytes.length).toBeGreaterThan(0);
+    expect(store.exportHus().bytes.length).toBeGreaterThan(0);
+  });
+
+  it('renders a stitch movie from the photo mosaic', async () => {
+    useDesignStore
+      .getState()
+      .photoStitch(twoToneImage(), { widthMm: 20, cellMm: 2, colorCount: 2 });
+
+    const movie = await useDesignStore.getState().exportMovie({ size: 64, maxFrames: 20 });
+    expect(movie.filename).toMatch(/\.gif$/);
+    expect(movie.bytes.length).toBeGreaterThan(100);
+    expect(String.fromCharCode(...movie.bytes.slice(0, 6))).toBe('GIF89a');
   });
 
   it('is a single undo step', () => {

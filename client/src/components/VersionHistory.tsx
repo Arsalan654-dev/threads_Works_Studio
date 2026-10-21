@@ -104,6 +104,7 @@ export function VersionHistory({
         objects: fresh.design.objects,
         threadPalette: fresh.design.threadPalette,
         capWrap: fresh.design.capWrap,
+        referenceImage: fresh.design.referenceImage ?? null,
       });
       notify('Design restored');
       onClose();
