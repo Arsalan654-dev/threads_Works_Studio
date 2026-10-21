@@ -30,7 +30,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     // Unique index violation - surfaced as a conflict, not a 500.
     apiError = ApiError.conflict('That value is already in use', { key: err.keyValue });
   } else if (isBodyParserLimit(err)) {
-    apiError = ApiError.tooLarge(err.message);
+    apiError = ApiError.tooLarge(
+      `The request body is larger than this server's configured limit (${env.MAX_PROJECT_MB} MB for designs, ${env.MAX_UPLOAD_MB} MB for uploads).`,
+    );
   } else {
     const unexpected = err as Error;
     process.stderr.write(

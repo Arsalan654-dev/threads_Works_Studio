@@ -33,6 +33,12 @@ export function StatusBar(): React.ReactElement {
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
 
+  // A brand-new canvas has no stitches, which the validator correctly reports
+  // as EMPTY_DESIGN. That is a starting state, not a mistake: showing it as a
+  // red error made the app look broken before the first shape was drawn.
+  const emptyDesign = errors.length === 1 && errors[0]?.code === 'EMPTY_DESIGN';
+  const visibleErrors = errors.filter((i) => i.code !== 'EMPTY_DESIGN');
+
   return (
     <footer className="statusbar">
       <span className="status-item" data-testid="stitch-count">
@@ -70,9 +76,15 @@ export function StatusBar(): React.ReactElement {
           {lastError}
         </span>
       )}
-      {errors.length > 0 && (
+      {visibleErrors.length > 0 && (
         <span className="status-issue error" data-testid="validation-errors">
-          {errors.length} error{errors.length === 1 ? '' : 's'}: {errors[0]!.message}
+          {visibleErrors.length} error{visibleErrors.length === 1 ? '' : 's'}:{' '}
+          {visibleErrors[0]!.message}
+        </span>
+      )}
+      {emptyDesign && (
+        <span className="status-issue" data-testid="empty-design">
+          Empty design — draw a shape to begin
         </span>
       )}
       {warnings.length > 0 && (
@@ -80,11 +92,15 @@ export function StatusBar(): React.ReactElement {
           {warnings.length} warning{warnings.length === 1 ? '' : 's'}
         </span>
       )}
-      {!compileFailed && !lastError && errors.length === 0 && warnings.length === 0 && (
-        <span className="status-issue ok" data-testid="validation-ok">
-          Ready to sew
-        </span>
-      )}
+      {!compileFailed &&
+        !lastError &&
+        visibleErrors.length === 0 &&
+        !emptyDesign &&
+        warnings.length === 0 && (
+          <span className="status-issue ok" data-testid="validation-ok">
+            Ready to sew
+          </span>
+        )}
     </footer>
   );
 }

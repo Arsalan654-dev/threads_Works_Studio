@@ -5,11 +5,12 @@ types and parameters, watch the design sew out, and export a genuine machine
 file - Tajima `.dst`, Brother `.pes`, Melco `.exp`, Janome `.jef`, Husqvarna
 `.vp3`, `.hus` or `.tbf` - for your machine.
 
-MERN stack — **M**ongoDB (local), **E**xpress, **R**eact + TypeScript, **N**ode —
-built as an npm workspace with a shared embroidery engine package.
+MERN stack — **M**ongoDB (local or Atlas), **E**xpress, **R**eact + TypeScript,
+**N**ode — built as an npm workspace with a shared embroidery engine package.
 
-Everything runs on your own machine. No cloud account, no telemetry, no CDN.
-The server binds to `127.0.0.1` only.
+Local is the default: the server binds to `127.0.0.1`, needs no account, and
+works without a CDN. The same build can be hosted on Vercel with MongoDB Atlas;
+see [docs/deployment.md](docs/deployment.md).
 
 ---
 
@@ -38,9 +39,9 @@ npm run build        # engine + server + client
 npm start            # production server on http://127.0.0.1:4000
 
 npm run dev          # all three watchers for development
-npm test             # 696 tests across engine, server and client
+npm test             # 1,158 tests across engine, server and client
 npm run typecheck    # strict TS across every workspace
-npm run smoke        # 90 end-to-end checks against a running server
+npm run smoke        # 119 end-to-end checks against a running server
 npm run lint
 ```
 

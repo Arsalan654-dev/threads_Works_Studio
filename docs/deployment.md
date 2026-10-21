@@ -70,7 +70,7 @@ allowed, so local development keeps working against the same code.
 
 ---
 
-## 3. Vercel (client)
+## 3. Vercel (client + optional API)
 
 1. Vercel → **Add New → Project** → import the same GitHub repository.
 2. Keep the **root directory** as the repository root. `vercel.json` sets:
@@ -83,12 +83,13 @@ allowed, so local development keeps working against the same code.
 
 3. **Environment Variables** (Production and Preview):
 
-   | Variable       | Value                                      |
-   | -------------- | ------------------------------------------ |
-   | `VITE_API_URL` | the Railway API origin, **without** `/api` |
+   | Variable       | Value                                                                  |
+   | -------------- | ---------------------------------------------------------------------- |
+   | `VITE_API_URL` | the Railway API origin, **without** `/api` (omit for Vercel-only mode) |
 
    `VITE_API_URL` is compiled into the bundle, so changing it requires a
-   redeploy of the Vercel project.
+   redeploy of the Vercel project. When it is omitted the client calls the
+   same origin's `/api`, which is what the Vercel Function serves.
 
 4. Deploy, then copy the production domain (e.g.
    `https://threadworks.vercel.app`).
@@ -115,17 +116,23 @@ API.
   the original path before handing the request to Express.
 - Add these Vercel environment variables (Production and Preview):
   `MONGODB_URI`, `CORS_ORIGINS` (the Vercel domain plus
-  `https://*.vercel.app`), and `NODE_ENV=production`.
+  `https://*.vercel.app`), `NODE_ENV=production`, and
+  `MAX_PROJECT_MB=4`.
 - Leave `VITE_API_URL` unset. The client then calls the same origin's `/api`.
 - The function reuses one MongoDB connection per instance and runs
-  `ensureIndexes` on the first request.
+  `ensureIndexes` on the first request. The project library returns metadata
+  only; a design is fetched when it is opened.
 
 Vercel Functions have a **4.5 MB request/response body limit**. Normal designs
-fit, but very large designs (or a project list carrying many full designs) can
-return `413 FUNCTION_PAYLOAD_TOO_LARGE`. Railway has no such limit and remains
+fit, but a single very large design can still return `413`. Setting
+`MAX_PROJECT_MB=4` makes the API reject it first with a structured error
+instead of an opaque platform response. Railway has no such limit and remains
 the better host for the full `MAX_PROJECT_MB` range. To switch back, set
 `VITE_API_URL` to the Railway origin and redeploy Vercel; the Vercel Function
 can stay in the repo unused.
+
+The current deployment runs in this Vercel-only mode at
+`https://threadworks-studio.vercel.app`, with Vercel Authentication enabled.
 
 ---
 

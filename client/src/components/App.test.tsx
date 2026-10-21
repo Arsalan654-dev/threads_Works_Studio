@@ -124,14 +124,19 @@ const HEALTH = {
   environment: 'test',
   uptimeSeconds: 1,
   database: 'connected',
+  databaseMode: 'local',
   serverTime: '2026-01-01T00:00:00.000Z',
 };
 
 type Handler = (url: string, init?: RequestInit) => { status: number; body?: unknown };
 
+/** Overridden per test when the case needs a specific health response. */
+let handleHealth: Handler | null = null;
+
 /** Default routing. Individual tests override `handleProject`. */
 function route(url: string, init?: RequestInit): { status: number; body?: unknown } {
-  if (url.startsWith('/api/health')) return { status: 200, body: HEALTH };
+  if (url.startsWith('/api/health'))
+    return handleHealth?.(url, init) ?? { status: 200, body: HEALTH };
   if (url.startsWith('/api/hoops')) return { status: 200, body: HOOPS };
   if (url.startsWith('/api/palettes')) return { status: 200, body: PALETTES };
   if (url.startsWith('/api/presets')) return { status: 200, body: PRESETS };
@@ -273,6 +278,7 @@ const originalConfirm = window.confirm;
 let anchorClick: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  handleHealth = null;
   handleProject = null;
   handleSettings = null;
   // A test that writes to the motif library must not leave its shape behind
@@ -356,6 +362,27 @@ describe('application shell', () => {
 
     // Reference data is available: no startup warning is shown.
     expect(document.querySelector('.startup-warning')).toBeNull();
+  });
+
+  it('labels a hosted Atlas database as cloud', async () => {
+    handleHealth = () => ({ status: 200, body: { ...HEALTH, databaseMode: 'remote' } });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('server-status')).toHaveTextContent('Cloud database'),
+    );
+  });
+
+  it('shows a neutral starting hint while the design is empty', async () => {
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('server-status')).toHaveTextContent('Local database'),
+    );
+
+    expect(screen.getByTestId('empty-design')).toHaveTextContent(/draw a shape/i);
+    expect(screen.queryByTestId('validation-errors')).not.toBeInTheDocument();
   });
 
   it('shows a warning instead of a blank screen when reference data fails', async () => {

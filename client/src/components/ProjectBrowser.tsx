@@ -13,7 +13,7 @@ import {
   projects,
   recentFiles,
   validationMessages,
-  type ProjectSummary,
+  type ProjectListItem,
   type RecentFile,
 } from '../api/client.js';
 import { useDesignStore } from '../store/designStore.js';
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function ProjectBrowser({ onClose, onOpened }: Props): React.ReactElement {
-  const [items, setItems] = useState<ProjectSummary[]>([]);
+  const [items, setItems] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +138,7 @@ export function ProjectBrowser({ onClose, onOpened }: Props): React.ReactElement
     }
   };
 
-  const remove = async (project: ProjectSummary): Promise<void> => {
+  const remove = async (project: ProjectListItem): Promise<void> => {
     const ok = window.confirm(
       `Delete "${project.name}"?\n\nThis cannot be undone. Take a backup first if you need it.`,
     );

@@ -78,6 +78,25 @@ function toDto(record: ProjectRecord) {
   return { id: wireId(_id), ...rest };
 }
 
+/**
+ * Wire shape for a library row.
+ *
+ * The design is deliberately omitted. The browser fetches it per project when
+ * one is opened, so sending every design in the list only made the response
+ * grow with the library - exactly the payload a hosted function's body limit
+ * cannot absorb. The summary is enough to render the row.
+ */
+function toListItem(record: ProjectRecord) {
+  return {
+    id: wireId(record._id),
+    name: record.name,
+    version: record.version,
+    summary: record.summary,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
 // --- list -------------------------------------------------------------------
 projectsRouter.get(
   '/',
@@ -91,7 +110,8 @@ projectsRouter.get(
 
     const [items, total] = await Promise.all([
       collection<ProjectRecord>(COLLECTIONS.projects)
-        .find(filter)
+        // The response omits the design; keep it out of the Mongo transfer too.
+        .find(filter, { projection: { design: 0 } })
         .sort({ updatedAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -99,7 +119,7 @@ projectsRouter.get(
       collection<ProjectRecord>(COLLECTIONS.projects).countDocuments(filter),
     ]);
 
-    res.json({ items: items.map(toDto), total, offset, limit });
+    res.json({ items: items.map(toListItem), total, offset, limit });
   }),
 );
 

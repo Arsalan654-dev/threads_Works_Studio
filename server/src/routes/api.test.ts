@@ -98,6 +98,7 @@ describe('GET /api/health', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.database).toBe('connected');
+    expect(res.body.databaseMode).toBe('local');
     expect(typeof res.body.uptimeSeconds).toBe('number');
   });
 
@@ -442,6 +443,10 @@ describe('projects', () => {
     const all = await request(app).get('/api/projects');
     expect(all.status).toBe(200);
     expect(all.body.total).toBeGreaterThanOrEqual(2);
+    // A library row carries metadata only. Sending every design made the list
+    // response grow with the library and could exceed a hosted body limit.
+    expect(all.body.items[0]).not.toHaveProperty('design');
+    expect(all.body.items[0]?.summary?.objectCount).toBe(1);
 
     const found = await request(app).get('/api/projects').query({ search: 'Alph' });
     expect(found.body.items).toHaveLength(1);

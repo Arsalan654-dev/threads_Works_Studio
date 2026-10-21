@@ -1,8 +1,9 @@
 # ThreadWorks Studio — Run Guide
 
 How to install, run, and operate ThreadWorks Studio on a single Windows
-machine. Everything here is local-only: no cloud, no remote database, no
-internet needed after install.
+machine. This guide covers the local setup: no cloud, no remote database, and
+no internet needed after install. For the hosted Vercel + Atlas setup, see
+[docs/deployment.md](docs/deployment.md).
 
 ---
 
@@ -100,7 +101,7 @@ Once the server is up, run the smoke test in a second terminal:
 npm run smoke
 ```
 
-It makes 110 checks against the live server: health, the editor being served
+It makes 119 checks against the live server: health, the editor being served
 with no external CDN references, seeded data, project create/update/delete
 including the optimistic-concurrency 409 path, version history (snapshot of the
 outgoing design, list without designs, manual checkpoint, restore) and recent
@@ -120,7 +121,7 @@ the registration crosses. The last line must read `All smoke checks passed.`
 | `shutdown.bat`      | Stop the running server.                                             |
 | `backup.bat`        | Write a timestamped JSONL backup of every design to `data/backups/`. |
 | `restore.bat`       | Restore from a chosen backup folder (overwrites current data).       |
-| `npm run smoke`     | 90 live checks against a running server.                             |
+| `npm run smoke`     | 119 live checks against a running server.                            |
 | `npm run seed`      | Re-seed hoops, palettes, and presets. Idempotent.                    |
 | `npm test`          | Run all unit tests (engine, server, client).                         |
 | `npm run typecheck` | Strict TypeScript check across every workspace.                      |

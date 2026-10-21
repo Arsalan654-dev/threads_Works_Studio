@@ -115,11 +115,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // Projects
 // ---------------------------------------------------------------------------
 
-export interface ProjectSummary {
+/**
+ * A row in the project library.
+ *
+ * The design is not included: the list stays small regardless of how large
+ * the saved designs are, and the selected project is fetched in full when it
+ * is opened. `ProjectSummary` adds the design for that per-project response.
+ */
+export interface ProjectListItem {
   id: string;
   name: string;
   version: number;
-  design: DesignPayload;
   summary: {
     objectCount: number;
     colorCount: number;
@@ -131,8 +137,12 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+export interface ProjectSummary extends ProjectListItem {
+  design: DesignPayload;
+}
+
 export interface ProjectList {
-  items: ProjectSummary[];
+  items: ProjectListItem[];
   total: number;
   offset: number;
   limit: number;
@@ -366,6 +376,8 @@ export interface HealthStatus {
   environment: string;
   uptimeSeconds: number;
   database: 'connected' | 'disconnected';
+  /** Local mongod vs Atlas/other hosted MongoDB; absent on older servers. */
+  databaseMode?: 'local' | 'remote';
   databaseError?: string;
   serverTime: string;
 }

@@ -14,7 +14,7 @@ Last reviewed: the build with photo stitch, appliqué, sequencing, shaping tools
 | ---------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Auto-digitizing from an image**                                | done            | colours reduced by median cut, outlines traced with holes, noise filtered, fills angled along each shape. `autoDigitize()` + the Trace image dialog.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **3D Foam**                                                      | done            | A satin column sewn over a foam sheet: the normal underlay is dropped for a light tack so it does not skate the sheet, the spacing is capped at 0.30 mm so no foam shows between rows, and the column pulls wider by a share of the foam's thickness so the thread still meets fabric past the raised edge. Applies to satin columns and lettering.                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Carving Stamp**                                                | done            | A texture pressed into a tatami fill: a repeating stamp is removed from the fill, so the shape keeps reading as a solid fill with a debossed pattern punched through it. The stamp grid follows the fill angle, travels are jumps over each hole (never sewing across it), and every stamp can carry a run outline so the edge reads crisply. The nine built-in stamps are always available and any shape from the motif library can be used instead.                                                                                                                                                                                                                                                                                                                       |
+| **Carving Stamp**                                                | done            | A texture pressed into a tatami fill: a repeating stamp is removed from the fill, so the shape keeps reading as a solid fill with a debossed pattern punched through it. The stamp grid follows the fill angle, travels are jumps over each hole (never sewing across it), and every stamp can carry a run outline so the edge reads crisply. The eight built-in stamps are always available and any shape from the motif library can be used instead.                                                                                                                                                                                                                                                                                                                      |
 | **Stitch video export**                                          | done            | "Stitch video" writes an animated GIF: stitches in thread colours, needle marker, live counter. Encoder verified against Pillow.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Multi-hoop splitting**                                         | done            | A design that outgrows every hoop is split into one section per re-hooping: the walk is sequential in sewing order, cuts prefer travel points (jump/trim/colour change) so no stitches are lost, one hoop is chosen for the whole design, and each section is translated to sit centred in that hoop's safe field and exported as its own DST/PES/EXP/JEF file. A cut that has to land mid-object (one object larger than the frame) is reported as a warning. See §3 for the join options (shared overlap, registration crosses).                                                                                                                                                                                                                                          |
 | **Importing DST/PES/PEC/EXP/JEF**                                | done            | The "Import" button reads a machine file, previews it with the movie's renderer, converts it to another format, or films it. A machine file is a flattened stitch list, so it comes back as stitches, not as editable shapes — see §3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -185,7 +185,7 @@ so the edge of each gap reads crisply.
 **The stamp grid follows the fill angle, and any motif can be a stamp.**
 Stamps are laid on the same staggered brick grid a motif fill uses, rotated to
 match the fill's angle so the texture sits with the stitches rather than
-against them. The same nine built-ins the motif fill offers are available, and
+against them. The same eight built-ins the motif fill offers are available, and
 any shape saved in the motif library can be used instead — see the motif
 library section above. Each stamp's rotation is on top of the fill angle,
 independent of it.
@@ -314,13 +314,22 @@ files) and cleaned up with their project.
 
 ## 5. Deployment scope
 
-**Local, single user, no authentication.** The server binds to localhost and the
-API has no login. It is meant to run on one machine for one person, backed by a
-local MongoDB. It is not hardened for a network, and running it on one would be
-a mistake.
+**Local by default; hosting is explicit.** The server binds to `127.0.0.1` and
+the API has no application-level login. Local use is one machine, one person,
+backed by a local MongoDB. Hosted use needs `NODE_ENV=production`,
+`MONGODB_URI`, and `CORS_ORIGINS`; the current Vercel deployment is
+additionally behind Vercel Authentication. CORS is not authentication: anyone
+who can reach the API with a permitted origin can read and write projects, so
+keep the deployment protected or add a token layer before sharing it.
 
-**No cloud, no telemetry, no internet after install.** Nothing leaves the
-machine. That also means no sync, no sharing, and no collaborative editing.
+**Vercel Functions are limited to a 4.5 MB request/response.** This build sets
+`MAX_PROJECT_MB=4` on Vercel so an oversized save fails with the API's own
+structured 413 instead of an opaque platform error. Larger designs need the
+Railway or local server, whose default limit is 50 MB.
+
+**No telemetry, no CDN.** The local app works offline after install. The hosted
+version talks only to MongoDB Atlas and the Vercel platform. There is no
+cross-device sync, sharing, or collaborative editing.
 
 ---
 
@@ -360,7 +369,7 @@ For balance, the parts that are done and tested:
   (open to dense), hand stitch, jagged edge and 3D warp. Every textured fill is
   seeded from the shape's own geometry, never from a clock, so the preview, the
   export and the next compile all agree
-- Motif library: nine built-in shapes plus your own, captured from the canvas
+- Motif library: eight built-in shapes plus your own, captured from the canvas
   or pasted as an SVG path or coordinates; rename, delete, and pick one for a
   motif fill or a carving stamp. A design carries the shape it used, so it
   still sews after the library entry is gone.

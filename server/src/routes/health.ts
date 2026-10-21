@@ -13,6 +13,24 @@ import { env } from '../config/env.js';
 
 const startedAt = Date.now();
 
+/**
+ * Whether the API is talking to a database on this machine or a hosted one.
+ * Only the label is exposed; the connection string (and its credentials) is
+ * never part of the response.
+ */
+function databaseModeOf(uri: string): 'local' | 'remote' {
+  const authority = uri.replace(/^mongodb(\+srv)?:\/\//i, '').split('/')[0] ?? '';
+  const hostPort = authority.split('@').pop() ?? '';
+  const firstHost = hostPort.split(',')[0] ?? '';
+  const host = firstHost.startsWith('[')
+    ? firstHost.slice(1, firstHost.indexOf(']')).toLowerCase()
+    : (firstHost.split(':')[0] ?? '').toLowerCase();
+
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1' ? 'local' : 'remote';
+}
+
+const databaseMode = databaseModeOf(env.MONGODB_URI);
+
 export const healthRouter: Router = Router();
 
 healthRouter.get(
@@ -46,6 +64,7 @@ healthRouter.get(
       environment: env.NODE_ENV,
       uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
       database,
+      databaseMode,
       ...(databaseError ? { databaseError } : {}),
       // Timestamp lets a client detect a server restart without a session.
       serverTime: new Date().toISOString(),

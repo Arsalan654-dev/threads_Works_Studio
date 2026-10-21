@@ -13,6 +13,7 @@
  * The `.mjs` extension keeps this file native ESM, matching `server/dist`.
  */
 
+import { URL } from 'node:url';
 import { createApp } from '../server/dist/app.js';
 import { connectDb, ensureIndexes } from '../server/dist/db/mongo.js';
 

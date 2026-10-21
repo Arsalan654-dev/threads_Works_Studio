@@ -299,7 +299,11 @@ export function TopBar(): React.ReactElement {
           className={`status-dot ${server?.database === 'connected' ? 'ok' : 'warn'}`}
           aria-hidden
         />
-        {server?.database === 'connected' ? 'Local database' : 'Database offline'}
+        {server?.database === 'connected'
+          ? server.databaseMode === 'remote'
+            ? 'Cloud database'
+            : 'Local database'
+          : 'Database offline'}
       </div>
 
       {message && (

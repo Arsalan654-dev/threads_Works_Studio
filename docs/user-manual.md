@@ -240,8 +240,9 @@ stops reading as texture.
 ### 3.8 Motif library
 
 A motif is the little shape a **Motif** fill repeats, or that a carving stamp
-presses into a fill. Nine ship with the app — diamond, circle, star, cross,
-hexagon, square, heart, flower and a plain round — and you can add your own.
+presses into a fill. Eight ship with the app — diamond, circle, star, cross,
+hexagon, square, heart and flower (the circle is the plain round) — and you can
+add your own.
 
 Open it from either place a motif is chosen: **Motif** in the fill-pattern
 list, the Motif stitch type, or **Carving Stamp**. The picker shows every shape
