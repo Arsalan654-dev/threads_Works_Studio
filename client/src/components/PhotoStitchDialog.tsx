@@ -16,10 +16,9 @@ import {
   planPhotoStitch,
   type PhotoPlan,
   type PhotoStyle,
-  type RasterImage,
 } from '@threadworks/engine';
 import { useDesignStore } from '../store/designStore.js';
-import { decodeImageFile } from '../image/decodeImage.js';
+import { decodeImageAsset, type DecodedImageAsset } from '../image/decodeImage.js';
 
 export interface PhotoStitchDialogProps {
   onClose: () => void;
@@ -52,7 +51,9 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
   const designWidth = useDesignStore((s) => s.design.width);
   const designHeight = useDesignStore((s) => s.design.height);
 
-  const [image, setImage] = useState<RasterImage | null>(null);
+  const [asset, setAsset] = useState<DecodedImageAsset | null>(null);
+  const image = asset?.raster ?? null;
+  const [keepReference, setKeepReference] = useState(true);
   const [widthMm, setWidthMm] = useState(100);
   const [colorCount, setColorCount] = useState(PRESETS.colour.colorCount);
   const [cellMm, setCellMm] = useState(PRESETS.colour.cellMm);
@@ -84,7 +85,15 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
     const plan = planned.plan;
     if (canvas === null || plan === null) return;
     const ctx = canvas.getContext('2d');
-    if (ctx === null) return; // jsdom and headless canvases: preview is optional
+    // jsdom and partial headless canvas implementations: the preview is
+    // optional, so a context without pixel buffers must not break the dialog.
+    if (
+      ctx === null ||
+      typeof ctx.createImageData !== 'function' ||
+      typeof ctx.putImageData !== 'function'
+    ) {
+      return;
+    }
 
     canvas.width = plan.columns;
     canvas.height = plan.rows;
@@ -111,9 +120,9 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
     setBusy(true);
     setError(null);
     try {
-      setImage(await decodeImageFile(file));
+      setAsset(await decodeImageAsset(file));
     } catch (err) {
-      setImage(null);
+      setAsset(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
@@ -130,11 +139,22 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
 
   const handleApply = useCallback((): void => {
     const plan = planned.plan;
-    if (image === null || plan === null) return;
+    if (asset === null || image === null || plan === null) return;
 
+    const reference = keepReference
+      ? { dataUrl: asset.dataUrl, name: asset.name, opacity: 0.28 }
+      : undefined;
     const summary = useDesignStore
       .getState()
-      .photoStitch(image, { widthMm, colorCount, cellMm, style, spacing, angle: 45 });
+      .photoStitch(image, {
+        widthMm,
+        colorCount,
+        cellMm,
+        style,
+        spacing,
+        angle: 45,
+        reference,
+      });
 
     if (summary.objects === 0) {
       notify('Nothing to sew - every cell was transparent.', true);
@@ -144,10 +164,24 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
     notify(
       `Photo stitched: ${summary.cells.toLocaleString()} cells in ${summary.colors} colour${
         summary.colors === 1 ? '' : 's'
-      } (${summary.cellMm.toFixed(2)} mm cells)`,
+      } (${summary.cellMm.toFixed(2)} mm cells).${
+        keepReference ? ' The source is kept behind it as a guide.' : ''
+      }`,
     );
     onClose();
-  }, [image, planned, widthMm, colorCount, cellMm, style, spacing, notify, onClose]);
+  }, [
+    image,
+    asset,
+    planned,
+    widthMm,
+    colorCount,
+    cellMm,
+    style,
+    spacing,
+    keepReference,
+    notify,
+    onClose,
+  ]);
 
   const blocked = image === null || planned.plan === null;
   const planError = planned.error;
@@ -330,6 +364,18 @@ export function PhotoStitchDialog({ onClose, notify }: PhotoStitchDialogProps): 
                 {plan.widthMm.toFixed(1)} x {plan.heightMm.toFixed(1)} mm
               </p>
             )}
+
+            <label className="trace-check">
+              <input
+                type="checkbox"
+                checked={keepReference}
+                data-testid="photo-keep-reference"
+                onChange={(e) => setKeepReference(e.target.checked)}
+              />
+              <span>
+                Keep the source picture behind the stitches as a guide (the image is never sewn)
+              </span>
+            </label>
           </>
         )}
 

@@ -411,7 +411,9 @@ Both presets are only starting points; every control stays editable:
 | **Satin density** | Distance between satin rows inside a cell; only used by the satin style.                      |
 
 The preview shows the real cell grid, so what you see is the colour layout that
-will be sewn, not a rescaled photograph.
+will be sewn, not a rescaled photograph. **Keep the source picture behind the
+stitches** is ticked by default, so the original stays under the mosaic as a
+faded tracing guide; clear it to replace the design without a guide.
 
 How it is built: the image is averaged down to the cell grid, reduced to the
 chosen number of thread colours (median cut, so the same picture always gives
