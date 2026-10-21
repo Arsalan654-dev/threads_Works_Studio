@@ -24,6 +24,7 @@
 
 import type {
   Bounds,
+  CapWrapSettings,
   CompoundPath,
   EmbroideryObject,
   Hoop,
@@ -34,8 +35,10 @@ import type {
   ThreadColor,
   ValidationResult,
 } from './types.js';
-import { DEFAULT_LETTERING_SPEC } from './types.js';
+import { DEFAULT_LETTERING_SPEC, isSpecialtyStitch } from './types.js';
 import { resolveMotif } from './motifs.js';
+import { specialtyStitches } from './specialty.js';
+import { capWrapProblem, compensateCapStitches } from './capwrap.js';
 import {
   layoutText,
   textToStitches,
@@ -94,6 +97,11 @@ import { computeStats } from './stats.js';
 export interface GenerateOptions {
   connectors?: Partial<ConnectorSettings>;
   optimizeColors?: boolean;
+  /**
+   * Cap-frame settings. Compensation is applied to the generated sequence, so
+   * preview, validation and every exporter see the same machine coordinates.
+   */
+  capWrap?: CapWrapSettings & { centerX?: number };
 }
 
 /**
@@ -139,6 +147,20 @@ export function generateObjectStitches(obj: EmbroideryObject): RawStitch[] {
   if (applique && !applique.fill) {
     return appliqueStitches(obj.path, applique, { maxStitchLength: p.maxStitchLength });
   }
+
+  // Specialty decorative stitches own their whole pass. Running the ordinary
+  // underlay first would bury the sequin/bead pattern under a dense fill.
+  if (isSpecialtyStitch(p.stitchType)) {
+    return specialtyStitches(obj.path, {
+      style: p.stitchType,
+      spacing: p.spacing,
+      angle: p.angle,
+      maxStitchLength: p.maxStitchLength,
+      line: obj.type === 'run' || obj.type === 'bean',
+      closed: obj.type !== 'run' && obj.type !== 'bean',
+    });
+  }
+
   const foam = p.foam ?? DEFAULT_FOAM;
 
   // --- underlay ----------------------------------------------------------
@@ -252,6 +274,7 @@ function letteringOptionsFor(obj: EmbroideryObject, spec: LetteringSpec): Letter
     slant: spec.slant,
     rotation: spec.rotation,
     width: spec.width,
+    font: spec.font ?? 'studio',
     // `transform.x/y` are the object's position; lettering anchors there.
     origin: { x: obj.transform.x, y: obj.transform.y },
     stretch: spec.stretch ?? 1,
@@ -636,10 +659,34 @@ export function compileDesign(
   }
 
   // --- sequence -----------------------------------------------------------
-  const { stitches } = buildSequence(groups, palette, {
+  const built = buildSequence(groups, palette, {
     connectors: { ...DEFAULT_CONNECTORS, ...options.connectors },
     optimizeColors: options.optimizeColors ?? false,
   });
+
+  // --- cap-frame driver compensation --------------------------------------
+  // Applied after sequencing so jumps and colour changes move with the
+  // stitches, and before statistics/validation so the hoop check measures the
+  // coordinates that actually reach the machine.
+  let stitches = built.stitches;
+  const capWrap = options.capWrap;
+  let capIssue: { severity: 'error'; code: string; message: string; objectId: null } | null = null;
+  if (capWrap?.enabled) {
+    const flatBounds = boundsOfStitches(stitches);
+    const width = flatBounds.maxX - flatBounds.minX;
+    const centerX =
+      capWrap.centerX ?? (hoop ? hoop.width / 2 : (flatBounds.minX + flatBounds.maxX) / 2);
+    const problem = capWrapProblem(capWrap, width, {
+      minX: flatBounds.minX,
+      maxX: flatBounds.maxX,
+      centerX,
+    });
+    if (problem) {
+      capIssue = { severity: 'error', code: 'CAP_WRAP_INVALID', message: problem, objectId: null };
+    } else if (capWrap.compensate) {
+      stitches = compensateCapStitches(stitches, { settings: capWrap, centerX });
+    }
+  }
 
   // --- stats --------------------------------------------------------------
   const stats = computeStats(stitches);
@@ -655,7 +702,7 @@ export function compileDesign(
 
   // --- validation ---------------------------------------------------------
   const validation = validateSequence(stitches, visible, hoop);
-  validation.issues = [...preIssues, ...validation.issues];
+  validation.issues = [...preIssues, ...(capIssue ? [capIssue] : []), ...validation.issues];
   validation.ok = !validation.issues.some((i) => i.severity === 'error');
 
   return { sequence, validation };
@@ -882,6 +929,7 @@ export type { ImportedDesign, ImportOptions, MachineFormat } from './formats/imp
 export type {
   AppliqueSettings,
   Bounds,
+  CapWrapSettings,
   CompoundPath,
   CarvePattern,
   CarveSettings,
@@ -889,6 +937,7 @@ export type {
   EmbroideryObject,
   EntryExit,
   FillPattern,
+  FontId,
   Hoop,
   LetteringDrop,
   LetteringOrder,
@@ -905,6 +954,7 @@ export type {
   RedworkSettings,
   RedworkStyle,
   Ring,
+  SpecialtyStitchType,
   Stitch,
   StitchCommand,
   StitchParameters,
@@ -945,7 +995,68 @@ export {
   type TextLayout,
 } from './lettering/layout.js';
 
-export { DEFAULT_APPLIQUE, DEFAULT_LETTERING_SPEC, DEFAULT_PHOTO } from './types.js';
+export {
+  FONTS,
+  FONT_IDS_PUBLIC,
+  FONT_LIBRARY,
+  fontFor,
+  isFontId,
+  resolveFontGlyph,
+  type FontDefinition,
+} from './lettering/fonts.js';
+
+export {
+  CLIPART,
+  CLIPART_CATEGORIES,
+  clipartById,
+  placeClipart,
+  searchClipart,
+  type ClipartEntry,
+  type ClipartPlacement,
+} from './clipart.js';
+
+export {
+  capDepthShade,
+  capPreviewPoint,
+  capRadius,
+  capWrapProblem,
+  compensateCapPoint,
+  compensateCapStitches,
+  type CapPreviewPoint,
+  type CapWrapTransform,
+} from './capwrap.js';
+
+export {
+  MAX_MACHINES,
+  machineNumbers,
+  machineOf,
+  spreadAcrossMachines,
+  splitObjectsByMachine,
+} from './machines.js';
+
+export { specialtyStitches, type SpecialtyOptions } from './specialty.js';
+
+export { designToSvg, type SvgArtworkOptions } from './artwork/svg.js';
+export { colorOf, stitchRuns, type ArtworkSource, type StitchRun } from './artwork/common.js';
+export {
+  PAPER_MM,
+  buildPdf,
+  designToPdf,
+  pdfBytes,
+  pdfLine,
+  pdfText,
+  type PaperSize,
+  type DesignPdfOptions,
+  type PdfDocumentOptions,
+  type PdfPage,
+} from './artwork/pdf.js';
+export {
+  buildPrintSheet,
+  type PrintSheetOptions,
+  type PrintSheetSummary,
+} from './artwork/print.js';
+
+export { DEFAULT_APPLIQUE, DEFAULT_CAP_WRAP, DEFAULT_LETTERING_SPEC, DEFAULT_PHOTO, SPECIALTY_STITCH_TYPES, isSpecialtyStitch } from './types.js';
 export { DEFAULT_REDWORK, REDWORK_LIMITS, redworkSettings, redworkStitches } from './redwork.js';
 export type { RedworkOptions } from './redwork.js';
 

@@ -50,6 +50,8 @@ export const SettingsValueSchema = z.object({
    */
   gridMajorSize: z.number().finite().min(0.5).max(250).default(25),
   previewUnderlay: z.boolean().default(true),
+  /** Lit/3D thread preview. Off keeps the original flat rendering. */
+  preview3d: z.boolean().default(false),
   stitchSimulationSpeed: z.number().finite().min(0.25).max(8).default(1),
 });
 

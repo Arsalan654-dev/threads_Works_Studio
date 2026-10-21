@@ -45,6 +45,10 @@ export const StitchTypeSchema = z.enum([
   'motif',
   'contour',
   'spiral',
+  'sequin',
+  'beading',
+  'chenille',
+  'schiffli',
 ]);
 
 export const FillPatternSchema = z.enum([
@@ -303,6 +307,7 @@ export const LetteringSpecSchema = z.object({
   slant: z.number().finite().min(-60).max(60),
   rotation: z.number().finite().min(-360).max(360),
   width: z.number().finite().min(0.2).max(20),
+  font: z.enum(['studio', 'rounded', 'block', 'script', 'serif', 'mono']).optional(),
   stretch: z.number().finite().min(0.25).max(4).optional(),
   mirror: z.object({ x: z.boolean(), y: z.boolean() }).nullable().optional(),
   onPath: LetteringPathSchema.nullable().optional(),
@@ -327,6 +332,7 @@ export const EmbroideryObjectSchema = z.object({
   locked: z.boolean(),
   hidden: z.boolean(),
   groupId: z.string().max(64).nullable(),
+  machine: z.number().int().min(1).max(64).default(1),
   warnings: z.array(z.string().max(300)).max(100),
   /**
    * Null for every non-lettering object. Defaulting keeps designs written
@@ -354,6 +360,8 @@ export const HoopSchema = z.object({
   height: z.number().finite().min(20).max(1000),
   shape: z.enum(['rect', 'round', 'oval']),
   safeMargin: z.number().finite().min(0).max(50),
+  /** Curved cap frame. Optional; absent means a flat frame. */
+  cap: z.boolean().optional(),
 });
 
 /**
@@ -418,6 +426,13 @@ export const DesignDocumentSchema = z.object({
   hoopId: z.string().max(64).nullable().default(null),
   objects: z.array(EmbroideryObjectSchema).max(5000, 'Too many objects in one design'),
   threadPalette: z.array(ThreadColorSchema).max(1000),
+  capWrap: z
+    .object({
+      enabled: z.boolean(),
+      radiusMm: z.number().finite().min(20).max(400),
+      compensate: z.boolean(),
+    })
+    .default({ enabled: false, radiusMm: 90, compensate: true }),
 });
 
 export const ProjectCreateSchema = z.object({

@@ -13,6 +13,7 @@ import { createLettering, createObject, rectangleRing } from '../model/defaults.
  */
 function makeCtx() {
   const ops: string[] = [];
+  const texts: string[] = [];
   const record =
     (name: string) =>
     (..._args: unknown[]): void => {
@@ -21,6 +22,7 @@ function makeCtx() {
 
   const ctx = {
     ops,
+    texts,
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,
@@ -38,17 +40,22 @@ function makeCtx() {
     closePath: record('closePath'),
     moveTo: record('moveTo'),
     lineTo: record('lineTo'),
+    quadraticCurveTo: record('quadraticCurveTo'),
     arc: record('arc'),
     fill: record('fill'),
     stroke: record('stroke'),
     setLineDash: record('setLineDash'),
     setTransform: record('setTransform'),
+    translate: record('translate'),
     strokeRect: record('strokeRect'),
-    fillText: record('fillText'),
+    fillText: (...args: unknown[]): void => {
+      ops.push('fillText');
+      texts.push(String(args[0]));
+    },
     measureText: () => ({ width: 10 }),
   };
 
-  return ctx as unknown as CanvasRenderingContext2D & { ops: string[] };
+  return ctx as unknown as CanvasRenderingContext2D & { ops: string[]; texts: string[] };
 }
 
 const count = (ctx: { ops: string[] }, name: string): number =>
@@ -312,5 +319,32 @@ describe('lettering hit testing and outlines', () => {
     render(plain, options({ objects: [text], showOutlines: true, showStitches: false }));
 
     expect(count(selected, 'strokeRect')).toBeGreaterThan(count(plain, 'strokeRect'));
+  });
+});
+
+describe('Phase N/O preview passes', () => {
+  it('adds shading strokes for the lit preview without changing the stitch path', () => {
+    const flat = makeCtx();
+    render(flat, options());
+    const lit = makeCtx();
+    render(lit, options({ render3d: true }));
+
+    expect(count(lit, 'stroke')).toBeGreaterThan(count(flat, 'stroke'));
+    expect(count(lit, 'lineTo')).toBe(count(flat, 'lineTo'));
+  });
+
+  it('replaces the flat hoop with a labelled crown in cap mode', () => {
+    const cap = makeCtx();
+    render(
+      cap,
+      options({
+        capWrap: { enabled: true, radiusMm: 90, compensate: true },
+        capCenterX: 90,
+      }),
+    );
+
+    expect(cap.texts.some((text) => text.includes('Cap crown preview'))).toBe(true);
+    // The crown is drawn instead of the rectangular hoop field.
+    expect(count(cap, 'quadraticCurveTo')).toBeGreaterThan(0);
   });
 });

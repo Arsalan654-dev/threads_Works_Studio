@@ -19,10 +19,11 @@
  * them, so it changes the sewing order only.
  */
 
-import type { LetteringOrder, LetteringPath, MonogramSpec, Point } from '../types.js';
+import type { FontId, LetteringOrder, LetteringPath, MonogramSpec, Point } from '../types.js';
 import { dedupePoints, toRadians } from '../geometry/index.js';
 import { satinFromStroke, type RawStitch, type SatinOptions } from '../stitches/index.js';
-import { METRICS, resolveGlyph, type Glyph } from './font.js';
+import { METRICS, type Glyph } from './font.js';
+import { fontFor, resolveFontGlyph } from './fonts.js';
 
 export interface LetteringOptions {
   /** Cap height in millimeters. Other features scale with it. */
@@ -37,6 +38,8 @@ export interface LetteringOptions {
   origin: Point;
   /** Stitch width of each stroke in millimeters. */
   width: number;
+  /** Original single-stroke family; absent means Studio Sans. */
+  font?: FontId;
   /** Horizontal width factor for the glyphs; 1 keeps the font's proportions. */
   stretch?: number;
   /** Mirrors applied to the finished layout. */
@@ -135,6 +138,21 @@ function composeGlyph(
 function stretchOf(options: LetteringOptions): number {
   const stretch = options.stretch ?? 1;
   return Number.isFinite(stretch) && stretch > 0 ? stretch : 1;
+}
+
+/**
+ * Pen advance for one glyph, including the operator spacing and the family's
+ * own tracking. Tracking is expressed in em units so it scales with cap height
+ * exactly like the glyph's advance.
+ */
+function advanceFor(
+  glyph: Glyph,
+  options: LetteringOptions,
+  charScale: number,
+  stretch: number,
+): number {
+  const tracking = fontFor(options.font).tracking * charScale * stretch;
+  return glyph.advance * charScale * stretch + options.spacing + tracking;
 }
 
 /** Mirror strokes horizontally about their own ink centre. */
@@ -275,7 +293,7 @@ function layoutStraight(chars: string[], options: LetteringOptions): TextLayout 
   let penX = 0;
 
   chars.forEach((char, index) => {
-    const { glyph, substituted } = resolveGlyph(char);
+    const { glyph, substituted } = resolveFontGlyph(char, options.font);
     const dropHere = drop !== null && index === drop.index;
     const factor = dropHere ? Math.max(0.5, drop.scale) : 1;
     const charScale = scale * factor;
@@ -284,7 +302,7 @@ function layoutStraight(chars: string[], options: LetteringOptions): TextLayout 
     const strokes = composeGlyph(glyph, charScale, options.slant, false, shiftY, stretch);
     translateX(strokes, penX);
 
-    const advance = glyph.advance * charScale * stretch + options.spacing;
+    const advance = advanceFor(glyph, options, charScale, stretch);
     pieces.push({ char, advance, substituted, strokes, anchorX: penX });
     penX += advance;
   });
@@ -332,8 +350,8 @@ function layoutOnPath(chars: string[], options: LetteringOptions, path: Letterin
   const total = cumulative[cumulative.length - 1]!;
 
   const advances = chars.map((char) => {
-    const { glyph } = resolveGlyph(char);
-    return glyph.advance * scale * stretch + options.spacing;
+    const { glyph } = resolveFontGlyph(char, options.font);
+    return advanceFor(glyph, options, scale, stretch);
   });
   const textWidth = advances.reduce((sum, a) => sum + a, 0) - options.spacing;
   let cursor = path.align === 'center' ? Math.max(0, (total - textWidth) / 2) : 0;
@@ -341,7 +359,7 @@ function layoutOnPath(chars: string[], options: LetteringOptions, path: Letterin
   const pieces: Piece[] = [];
 
   chars.forEach((char, index) => {
-    const { glyph, substituted } = resolveGlyph(char);
+    const { glyph, substituted } = resolveFontGlyph(char, options.font);
     const advance = advances[index]!;
     const mid = Math.min(cursor + advance / 2, total);
     const { point, angle } = pointOnPath(points, cumulative, mid);
@@ -458,10 +476,12 @@ function layoutMonogram(text: string, options: LetteringOptions): TextLayout {
   const left = letters.length >= 3 ? letters[0]! : null;
   const right = letters.length >= 3 ? letters[2]! : letters.length === 2 ? letters[1]! : null;
 
-  const centreGlyph = resolveGlyph(centre);
-  const centreAdvance = centreGlyph.glyph.advance * centreScale * stretch;
-  const sideAdvanceFor = (char: string): number =>
-    resolveGlyph(char).glyph.advance * sideScale * stretch;
+  const centreGlyph = resolveFontGlyph(centre, options.font);
+  const centreAdvance = advanceFor(centreGlyph.glyph, options, centreScale, stretch);
+  const sideAdvanceFor = (char: string): number => {
+    const glyph = resolveFontGlyph(char, options.font).glyph;
+    return advanceFor(glyph, options, sideScale, stretch);
+  };
 
   const leftAdvance = left ? sideAdvanceFor(left) : 0;
   const rightAdvance = right ? sideAdvanceFor(right) : 0;
@@ -474,7 +494,7 @@ function layoutMonogram(text: string, options: LetteringOptions): TextLayout {
   const pieces: Piece[] = [];
 
   if (left) {
-    const { glyph, substituted } = resolveGlyph(left);
+    const { glyph, substituted } = resolveFontGlyph(left, options.font);
     const strokes = composeGlyph(
       glyph,
       sideScale,
@@ -495,7 +515,7 @@ function layoutMonogram(text: string, options: LetteringOptions): TextLayout {
   }
 
   if (right) {
-    const { glyph, substituted } = resolveGlyph(right);
+    const { glyph, substituted } = resolveFontGlyph(right, options.font);
     const strokes = composeGlyph(
       glyph,
       sideScale,
@@ -577,8 +597,8 @@ export function measureText(text: string, options: LetteringOptions): number {
   const scale = scaleFor(options);
   let penX = 0;
   for (const char of text) {
-    const { glyph } = resolveGlyph(char);
-    penX += glyph.advance * scale + options.spacing;
+    const { glyph } = resolveFontGlyph(char, options.font);
+    penX += advanceFor(glyph, options, scale, 1);
   }
   // The final spacing is not inked but it is not a gap either - it simply
   // does not exist once sewing stops, so subtract it back.

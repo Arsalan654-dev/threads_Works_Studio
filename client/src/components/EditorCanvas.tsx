@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The design canvas.
  *
  * Handles pointer interaction and delegates all drawing to `canvas/render`.
@@ -78,7 +78,9 @@ export function EditorCanvas() {
   // the canvas as the machine will not sew it, which makes dense areas easier
   // to read. It never changes what gets exported.
   const showUnderlay = referenceStore((s) => s.settings?.previewUnderlay ?? true);
+  const preview3d = referenceStore((s) => s.settings?.preview3d ?? false);
   const hoopPresets = referenceStore((s) => s.hoops);
+  const capWrap = useDesignStore((s) => s.design.capWrap);
 
   // Playback is read fresh inside `paint` rather than threaded through props,
   // but these two are subscribed so React re-renders and schedules a repaint
@@ -197,6 +199,9 @@ export function EditorCanvas() {
       showUnderlay,
       showStitches: true,
       showOutlines: true,
+      render3d: preview3d,
+      capWrap: capWrap.enabled ? capWrap : null,
+      capCenterX: hoop ? hoop.width / 2 : designWidth / 2,
       gridSize,
       gridMajorSize,
       // Outside playback `active` is false and the full sequence shows.
@@ -261,6 +266,8 @@ export function EditorCanvas() {
     showGrid,
     showRulers,
     showUnderlay,
+    preview3d,
+    capWrap,
     gridSize,
     gridMajorSize,
     draft,

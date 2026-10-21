@@ -13,7 +13,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RightPanel } from './RightPanel.js';
 import { useDesignStore } from '../store/designStore.js';
 import { referenceStore } from '../store/referenceStore.js';
-import { createObject, rectangleRing } from '../model/defaults.js';
+import { createLettering, createObject, rectangleRing } from '../model/defaults.js';
 
 beforeEach(() => {
   referenceStore.setState({
@@ -438,5 +438,79 @@ describe('redwork controls', () => {
     expect(screen.getByTestId('redwork-width')).toBeDisabled();
     fireEvent.change(screen.getByTestId('redwork-style'), { target: { value: 'stem' } });
     expect(screen.getByTestId('redwork-width')).toBeEnabled();
+  });
+});
+
+describe('cap frame controls', () => {
+  it('enables cap wrap and writes the crown radius to the document', () => {
+    render(<RightPanel />);
+
+    fireEvent.click(screen.getByTestId('cap-frame-enabled'));
+
+    expect(useDesignStore.getState().design.capWrap.enabled).toBe(true);
+    expect(screen.getByTestId('cap-frame-radius')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('cap-frame-radius'), { target: { value: '120' } });
+    expect(useDesignStore.getState().design.capWrap.radiusMm).toBe(120);
+  });
+
+  it('shows the same validation the export will apply', () => {
+    useDesignStore.getState().setCapWrap({ enabled: true, radiusMm: 40 });
+    useDesignStore.getState().setSize(200, 200, null);
+    render(<RightPanel />);
+
+    expect(screen.getByTestId('cap-frame-problem')).toHaveTextContent(/wide/i);
+  });
+});
+
+describe('production machine assignment', () => {
+  it('writes the machine number on the selected object', () => {
+    const object = createObject('fill', [rectangleRing(10, 10, 30, 30)]);
+    useDesignStore.getState().addObject(object);
+    render(<RightPanel />);
+
+    fireEvent.change(screen.getByTestId('object-machine'), { target: { value: '4' } });
+
+    expect(useDesignStore.getState().design.objects[0]!.machine).toBe(4);
+  });
+
+  it('spreads a multi-selection across machines in one undo step', () => {
+    const a = createObject('fill', [rectangleRing(10, 10, 20, 20)]);
+    const b = createObject('fill', [rectangleRing(40, 10, 20, 20)], 1, 1);
+    useDesignStore.getState().addObject(a);
+    useDesignStore.getState().addObject(b);
+    useDesignStore.setState({ selection: [a.id, b.id] });
+    const undoDepth = useDesignStore.getState().past.length;
+    render(<RightPanel />);
+
+    fireEvent.click(screen.getByTestId('spread-machines'));
+
+    expect(useDesignStore.getState().design.objects.map((o) => o.machine)).toEqual([1, 2]);
+    expect(useDesignStore.getState().past.length).toBe(undoDepth + 1);
+  });
+});
+
+describe('specialty stitch disclosure', () => {
+  it('tells the operator that the effect is a sewn simulation', () => {
+    const object = createObject('fill', [rectangleRing(10, 10, 30, 30)]);
+    object.params = { ...object.params, stitchType: 'sequin' };
+    useDesignStore.getState().addObject(object);
+    render(<RightPanel />);
+
+    expect(screen.getByTestId('specialty-note')).toHaveTextContent(/standard needle penetrations/i);
+  });
+});
+
+describe('original font picker', () => {
+  it('offers every cut and writes the chosen family', () => {
+    const text = createLettering({ x: 20, y: 20 }, { text: 'A', height: 20 });
+    useDesignStore.getState().addObject(text);
+    render(<RightPanel />);
+
+    const select = screen.getByTestId('lettering-font') as HTMLSelectElement;
+    expect(select.options).toHaveLength(6);
+    fireEvent.change(select, { target: { value: 'script' } });
+
+    expect(useDesignStore.getState().design.objects[0]!.lettering?.font).toBe('script');
   });
 });

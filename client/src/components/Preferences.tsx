@@ -302,6 +302,20 @@ export function Preferences({ onClose }: { onClose: () => void }): React.ReactEl
           <label className="field checkbox">
             <input
               type="checkbox"
+              checked={settings.preview3d ?? false}
+              onChange={(e) => update({ preview3d: e.target.checked })}
+              data-testid="pref-preview-3d"
+            />
+            <span>Lit / 3D thread preview</span>
+            <small className="muted">
+              Adds a shadow and highlight pass over the stitches. It changes only the screen image,
+              never the exported file.
+            </small>
+          </label>
+
+          <label className="field checkbox">
+            <input
+              type="checkbox"
               checked={settings.previewUnderlay}
               onChange={(e) => update({ previewUnderlay: e.target.checked })}
               data-testid="pref-preview-underlay"

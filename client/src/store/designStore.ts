@@ -56,7 +56,14 @@ import {
   borderPath,
   roundCorners,
   REDWORK_LIMITS,
+  DEFAULT_CAP_WRAP,
+  spreadAcrossMachines,
+  designToSvg,
+  designToPdf,
+  buildPrintSheet,
+  splitObjectsByMachine,
   type AutoDigitizeOptions,
+  type CapWrapSettings,
   type CompoundPath,
   type EmbroideryObject,
   type Hoop,
@@ -70,6 +77,7 @@ import {
   type StitchMovieOptions,
   type ThreadColor,
   type ValidationResult,
+  type PaperSize,
 } from '@threadworks/engine';
 import {
   HISTORY_LIMIT,
@@ -81,6 +89,7 @@ import {
 } from '../model/defaults.js';
 import { referenceStore } from './referenceStore.js';
 import { encodeGif } from '../video/gif.js';
+import { artworkPng } from '../files/artwork.js';
 
 export type Tool =
   | 'select'
@@ -99,6 +108,22 @@ export type Tool =
 
 /** Machine formats the studio can write out. */
 export type ExportFormat = 'dst' | 'pes' | 'exp' | 'jef' | 'vp3' | 'tbf' | 'hus';
+
+/** Customer-facing artwork formats, separate from machine files. */
+export type ArtworkFormat = 'svg' | 'png' | 'pdf' | 'print';
+
+export interface ArtworkRequest {
+  format: ArtworkFormat;
+  paper?: PaperSize;
+  landscape?: boolean;
+  scale?: 'fit' | '1:1';
+  includeHoop?: boolean;
+  includeLegend?: boolean;
+  /** PNG output width in mm. */
+  widthMm?: number;
+  dpi?: number;
+  background?: string | null;
+}
 
 /**
  * How several selected shapes can be combined.
@@ -124,6 +149,7 @@ export interface DesignState {
   hoopId: string | null;
   objects: EmbroideryObject[];
   threadPalette: ThreadColor[];
+  capWrap: CapWrapSettings;
 }
 
 export interface CompiledDesign {
@@ -203,6 +229,7 @@ interface DesignStore {
     hoopId: string | null;
     objects: EmbroideryObject[];
     threadPalette: ThreadColor[];
+    capWrap?: CapWrapSettings;
   }) => void;
 
   // --- editing ---
@@ -439,6 +466,32 @@ interface DesignStore {
   };
 
   /**
+   * Compile each machine's objects separately and encode one file per machine.
+   * A machine with no visible objects is omitted rather than written empty.
+   */
+  exportByMachine: (format: ExportFormat) => {
+    machines: number[];
+    message: string;
+    files: { machine: number; filename: string; bytes: Uint8Array; mime: string; objects: number }[];
+  };
+
+  /** Change cap-frame settings without touching geometry. */
+  setCapWrap: (patch: Partial<CapWrapSettings>) => void;
+
+  /** Assign every selected object to the same 1-based production machine. */
+  assignMachineToSelected: (machine: number) => void;
+
+  /** Give every selected object its own machine in selection order. */
+  spreadMachinesAcrossSelected: () => void;
+
+  /** Vector/raster/print artwork built from the same compiled sequence. */
+  exportArtwork: (request: ArtworkRequest) => Promise<{
+    filename: string;
+    bytes: Uint8Array;
+    mime: string;
+  }>;
+
+  /**
    * Render the compiled design as an animated stitch movie (GIF).
    *
    * Asynchronous because the work runs on a worker thread: the page keeps
@@ -520,6 +573,60 @@ function requireExportable(validation: ValidationResult, ignore: string[] = []):
   }
 }
 
+/** Encode one independently valid machine file. Used by part and machine splits. */
+function encodeStitches(
+  format: ExportFormat,
+  stitches: StitchSequence['stitches'],
+  colorCount: number,
+  name: string,
+  threads: ThreadColor[],
+): { filename: string; bytes: Uint8Array; mime: string } {
+  switch (format) {
+    case 'pes':
+      return {
+        filename: `${name}${PES_EXTENSION}`,
+        bytes: writePes(stitches, { name, colorCount, threads }),
+        mime: PES_MIME,
+      };
+    case 'exp':
+      return {
+        filename: `${name}${EXP_EXTENSION}`,
+        bytes: writeExp(stitches),
+        mime: EXP_MIME,
+      };
+    case 'jef':
+      return {
+        filename: `${name}${JEF_EXTENSION}`,
+        bytes: writeJef(stitches, { threads }),
+        mime: JEF_MIME,
+      };
+    case 'vp3':
+      return {
+        filename: `${name}${VP3_EXTENSION}`,
+        bytes: writeVp3(stitches, threads),
+        mime: VP3_MIME,
+      };
+    case 'tbf':
+      return {
+        filename: `${name}${TBF_EXTENSION}`,
+        bytes: writeTbf(stitches, threads, name),
+        mime: TBF_MIME,
+      };
+    case 'hus':
+      return {
+        filename: `${name}${HUS_EXTENSION}`,
+        bytes: writeHus(stitches, threads, name),
+        mime: HUS_MIME,
+      };
+    default:
+      return {
+        filename: `${name}${DST_EXTENSION}`,
+        bytes: writeDst(stitches, { name, colorCount }),
+        mime: DST_MIME,
+      };
+  }
+}
+
 /** Deep clone used for history snapshots: history must not alias live state. */
 function cloneDesign(design: DesignState): DesignState {
   return {
@@ -541,6 +648,7 @@ function cloneDesign(design: DesignState): DesignState {
       warnings: [...o.warnings],
     })),
     threadPalette: design.threadPalette.map((c) => ({ ...c })),
+    capWrap: { ...design.capWrap },
   };
 }
 
@@ -663,6 +771,7 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           hoopId: input.hoopId,
           objects: input.objects,
           threadPalette: input.threadPalette,
+          capWrap: { ...DEFAULT_CAP_WRAP, ...(input.capWrap ?? {}) },
         },
         selection: [],
         pendingEntryExit: null,
@@ -1526,6 +1635,10 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
       const hoop = resolveHoop(state.design.hoopId);
       const result = compileDesign(state.design.objects, state.design.threadPalette, hoop, {
         optimizeColors: state.optimizeColors,
+        capWrap: {
+          ...state.design.capWrap,
+          centerX: hoop ? hoop.width / 2 : state.design.width / 2,
+        },
       });
 
       // Cache at the *current* revision: if the document changed while
@@ -1750,47 +1863,7 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
         // is the difference between sewing the right section and the wrong.
         const partName = `${base}-part${section.index}of${split.sections.length}`;
         const { stitches, colorCount } = section;
-
-        switch (format) {
-          case 'pes': {
-            const bytes = writePes(stitches, { name: partName, colorCount, threads });
-            return { filename: `${partName}${PES_EXTENSION}`, bytes, mime: PES_MIME };
-          }
-          case 'exp':
-            return {
-              filename: `${partName}${EXP_EXTENSION}`,
-              bytes: writeExp(stitches),
-              mime: EXP_MIME,
-            };
-          case 'jef':
-            return {
-              filename: `${partName}${JEF_EXTENSION}`,
-              bytes: writeJef(stitches, { threads }),
-              mime: JEF_MIME,
-            };
-          case 'vp3':
-            return {
-              filename: `${partName}${VP3_EXTENSION}`,
-              bytes: writeVp3(stitches, threads),
-              mime: VP3_MIME,
-            };
-          case 'tbf':
-            return {
-              filename: `${partName}${TBF_EXTENSION}`,
-              bytes: writeTbf(stitches, threads, partName),
-              mime: TBF_MIME,
-            };
-          case 'hus':
-            return {
-              filename: `${partName}${HUS_EXTENSION}`,
-              bytes: writeHus(stitches, threads, partName),
-              mime: HUS_MIME,
-            };
-          default: {
-            const bytes = writeDst(stitches, { name: partName, colorCount });
-            return { filename: `${partName}${DST_EXTENSION}`, bytes, mime: DST_MIME };
-          }
-        }
+        return encodeStitches(format, stitches, colorCount, partName, threads);
       });
 
       return {
@@ -1799,6 +1872,145 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
         warnings: split.warnings,
         files,
       };
+    },
+
+    exportByMachine: (format) => {
+      const state = get();
+      const hoop = resolveHoop(state.design.hoopId);
+      const visible = state.design.objects.filter((o) => !o.hidden);
+      const groups = splitObjectsByMachine(visible);
+      if (groups.size === 0) throw new Error('There are no visible objects to export.');
+
+      const base = sanitizeFilename(state.design.name);
+      const threads = state.design.threadPalette;
+      const capWrap = {
+        ...state.design.capWrap,
+        centerX: hoop ? hoop.width / 2 : state.design.width / 2,
+      };
+      const machines: number[] = [];
+      const files = [] as ReturnType<NonNullable<DesignStore['exportByMachine']>>['files'];
+
+      for (const [machine, objects] of groups) {
+        const { sequence, validation } = compileDesign(objects, threads, hoop, {
+          optimizeColors: state.optimizeColors,
+          capWrap,
+        });
+        try {
+          requireExportable(validation);
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          throw new Error(`Machine ${machine} cannot be exported: ${reason}`, { cause: err });
+        }
+        const name = `${base}-machine${machine}`;
+        const file = encodeStitches(format, sequence.stitches, sequence.colorCount, name, threads);
+        machines.push(machine);
+        files.push({ machine, ...file, objects: objects.length });
+      }
+
+      return {
+        machines,
+        message:
+          files.length === 1
+            ? `All visible objects are assigned to machine ${machines[0]}, so one file was written.`
+            : `${files.length} machine files written (${machines.join(', ')}).`,
+        files,
+      };
+    },
+
+    setCapWrap: (patch) => {
+      mutate((d) => ({ ...d, capWrap: { ...d.capWrap, ...patch } }));
+    },
+
+    assignMachineToSelected: (machine) => {
+      const selected = new Set(get().selection);
+      if (selected.size === 0) return;
+      const value = Number.isFinite(machine)
+        ? Math.min(64, Math.max(1, Math.round(machine)))
+        : 1;
+      mutate((d) => ({
+        ...d,
+        objects: d.objects.map((o) => (selected.has(o.id) ? { ...o, machine: value } : o)),
+      }));
+    },
+
+    spreadMachinesAcrossSelected: () => {
+      const selected = new Set(get().selection);
+      if (selected.size < 2) return;
+      const chosen = get().design.objects.filter((o) => selected.has(o.id));
+      const assigned = spreadAcrossMachines(chosen);
+      const byId = new Map(assigned.map((o) => [o.id, o.machine ?? 1]));
+      mutate((d) => ({
+        ...d,
+        objects: d.objects.map((o) => (byId.has(o.id) ? { ...o, machine: byId.get(o.id) } : o)),
+      }));
+    },
+
+    exportArtwork: async (request) => {
+      const state = get();
+      const { sequence, validation } = state.getCompiled();
+      requireExportable(validation);
+      const hoop = resolveHoop(state.design.hoopId);
+      const name = sanitizeFilename(state.design.name);
+      const palette = state.design.threadPalette;
+      const stitches = sequence.stitches;
+
+      switch (request.format) {
+        case 'svg': {
+          const svg = designToSvg({
+            stitches,
+            palette,
+            title: state.design.name,
+            hoop,
+            includeHoop: request.includeHoop ?? true,
+            background: request.background ?? null,
+          });
+          return {
+            filename: `${name}.svg`,
+            bytes: new TextEncoder().encode(svg),
+            mime: 'image/svg+xml',
+          };
+        }
+        case 'png': {
+          const bytes = await artworkPng({
+            stitches,
+            palette,
+            hoop,
+            title: state.design.name,
+            widthMm: request.widthMm ?? 200,
+            dpi: request.dpi ?? 200,
+            background: request.background ?? '#ffffff',
+            includeHoop: request.includeHoop ?? false,
+          });
+          return { filename: `${name}.png`, bytes, mime: 'image/png' };
+        }
+        case 'print': {
+          const { bytes } = buildPrintSheet({
+            stitches,
+            palette,
+            title: state.design.name,
+            hoop,
+            paper: request.paper ?? 'a4',
+            landscape: request.landscape ?? false,
+            scale: request.scale === 'fit' ? 'fit' : '1:1',
+            includeLegend: request.includeLegend ?? true,
+            includeHoop: request.includeHoop ?? true,
+          });
+          return { filename: `${name}-print.pdf`, bytes, mime: 'application/pdf' };
+        }
+        default: {
+          const bytes = designToPdf({
+            stitches,
+            palette,
+            title: state.design.name,
+            hoop,
+            paper: request.paper ?? 'a4',
+            landscape: request.landscape ?? false,
+            scale: request.scale === '1:1' ? 1 : 'fit',
+            includeHoop: request.includeHoop ?? true,
+          });
+          return { filename: `${name}-art.pdf`, bytes, mime: 'application/pdf' };
+        }
+      }
     },
 
     exportMovie: async (options = {}) => {

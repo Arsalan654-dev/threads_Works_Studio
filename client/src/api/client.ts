@@ -8,7 +8,7 @@
  * rather than an `undefined is not an object`.
  */
 
-import type { EmbroideryObject, ThreadColor } from '@threadworks/engine';
+import type { CapWrapSettings, EmbroideryObject, ThreadColor } from '@threadworks/engine';
 
 export interface ApiErrorBody {
   code: string;
@@ -61,6 +61,7 @@ export interface DesignPayload {
   hoopId: string | null;
   objects: EmbroideryObject[];
   threadPalette: ThreadColor[];
+  capWrap?: CapWrapSettings;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -263,6 +264,7 @@ export interface HoopPayload {
   height: number;
   shape: 'rect' | 'round' | 'oval';
   safeMargin: number;
+  cap?: boolean;
 }
 
 /**
@@ -282,7 +284,18 @@ export interface MotifPayload {
 export type MotifPreset = Preset<MotifPayload>;
 
 export interface DigitizingParams {
-  stitchType: 'satin' | 'tatami' | 'run' | 'bean' | 'motif' | 'contour' | 'spiral';
+  stitchType:
+    | 'satin'
+    | 'tatami'
+    | 'run'
+    | 'bean'
+    | 'motif'
+    | 'contour'
+    | 'spiral'
+    | 'sequin'
+    | 'beading'
+    | 'chenille'
+    | 'schiffli';
   angle: number;
   spacing: number;
   maxStitchLength: number;
@@ -359,6 +372,8 @@ export interface AppSettings {
   /** Spacing of the major grid in mm; never smaller than `gridSize`. */
   gridMajorSize: number;
   previewUnderlay: boolean;
+  /** Lit/3D thread preview; absent on older servers means flat. */
+  preview3d?: boolean;
   stitchSimulationSpeed: number;
   updatedAt: string | null;
 }

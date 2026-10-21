@@ -229,3 +229,14 @@ describe('snap to objects preference', () => {
     expect(screen.getByTestId('pref-snap-objects')).toBeChecked();
   });
 });
+
+describe('lit preview preference', () => {
+  it('saves the screen-only 3D toggle through the API', async () => {
+    render(<Preferences onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByTestId('pref-preview-3d'));
+
+    await waitFor(() => expect(referenceStore.getState().settings?.preview3d).toBe(true));
+    expect(screen.getByTestId('pref-preview-3d')).toBeChecked();
+  });
+});

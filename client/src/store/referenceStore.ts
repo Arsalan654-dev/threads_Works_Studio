@@ -130,6 +130,7 @@ export const referenceStore = create<ReferenceStore>()((set, get) => ({
             height: p.data.height,
             shape: p.data.shape,
             safeMargin: p.data.safeMargin,
+            cap: p.data.cap === true,
           })),
         });
       } else {

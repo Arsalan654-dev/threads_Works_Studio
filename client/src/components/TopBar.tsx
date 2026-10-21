@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Top bar: file operations, history and export.
  *
  * Save is optimistic-concurrency aware: the version the document was loaded
@@ -18,6 +18,8 @@ import { Preferences } from './Preferences.js';
 import { ImageTraceDialog } from './ImageTraceDialog.js';
 import { PhotoStitchDialog } from './PhotoStitchDialog.js';
 import { ImportDialog } from './ImportDialog.js';
+import { ClipartBrowser } from './ClipartBrowser.js';
+import { ArtworkDialog } from './ArtworkDialog.js';
 import { downloadBytes } from '../files/download.js';
 
 export type { ExportFormat };
@@ -45,6 +47,8 @@ export function TopBar(): React.ReactElement {
   const [showTrace, setShowTrace] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showClipart, setShowClipart] = useState(false);
+  const [showArtwork, setShowArtwork] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('dst');
   const [rendering, setRendering] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -145,6 +149,18 @@ export function TopBar(): React.ReactElement {
     }
   };
 
+  const handleExportMachines = (): void => {
+    try {
+      const result = store.getState().exportByMachine(exportFormat);
+      for (const file of result.files) downloadBytes(file.bytes, file.filename, file.mime);
+      notify(`${result.message} Exported ${result.files.length} file(s).`);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      store.getState().setError(text);
+      notify(text, true);
+    }
+  };
+
   const handleExportMovie = async (): Promise<void> => {
     setRendering(true);
     try {
@@ -191,6 +207,22 @@ export function TopBar(): React.ReactElement {
           title="Sew a photograph as a fine colour mosaic or a fast Photo Flash"
         >
           Photo stitch
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowClipart(true)}
+          data-testid="clipart-open"
+          title="Browse original built-in clipart and add a shape"
+        >
+          Clipart
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowArtwork(true)}
+          data-testid="artwork-open"
+          title="Export SVG, PNG or PDF artwork, or a printable 1:1 placement sheet"
+        >
+          Artwork
         </button>
         <button
           type="button"
@@ -248,6 +280,14 @@ export function TopBar(): React.ReactElement {
           title="Split the design across multiple hoopings and export one file per section"
         >
           Export sections
+        </button>
+        <button
+          type="button"
+          onClick={handleExportMachines}
+          data-testid="export-machines"
+          title="Write one independently valid file per assigned production machine"
+        >
+          Export machines
         </button>
         <button
           type="button"
@@ -319,6 +359,14 @@ export function TopBar(): React.ReactElement {
       {showPhoto && <PhotoStitchDialog onClose={() => setShowPhoto(false)} notify={notify} />}
 
       {showImport && <ImportDialog onClose={() => setShowImport(false)} notify={notify} />}
+
+      {showClipart && (
+        <ClipartBrowser onClose={() => setShowClipart(false)} notify={notify} />
+      )}
+
+      {showArtwork && (
+        <ArtworkDialog onClose={() => setShowArtwork(false)} notify={notify} />
+      )}
 
       {showBrowser && (
         <ProjectBrowser

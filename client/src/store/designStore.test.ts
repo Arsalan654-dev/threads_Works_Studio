@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   writeDst,
   readDst,
@@ -2818,5 +2818,92 @@ describe('lettering transforms', () => {
 
     expect(storedObject(shape.id).path.rings[0]![0]).toEqual({ x: 5, y: -3 });
     expect(storedObject(shape.id).transform).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('Phase N/O design actions', () => {
+  it('keeps the chosen font with the lettering object', () => {
+    const text = createLettering({ x: 20, y: 20 }, { text: 'M', height: 20 });
+    useDesignStore.getState().addObject(text);
+    useDesignStore.getState().updateObject(text.id, {
+      lettering: { ...text.lettering!, font: 'serif' },
+    });
+
+    expect(useDesignStore.getState().design.objects[0]!.lettering?.font).toBe('serif');
+  });
+
+  it('assigns and spreads objects across production machines', () => {
+    const a = createObject('fill', [rectangleRing(20, 20, 20, 20)]);
+    const b = createObject('fill', [rectangleRing(60, 20, 20, 20)], 1, 1);
+    useDesignStore.getState().addObject(a);
+    useDesignStore.getState().addObject(b);
+    useDesignStore.setState({ selection: [a.id, b.id] });
+
+    useDesignStore.getState().assignMachineToSelected(3);
+    expect(useDesignStore.getState().design.objects.map((o) => o.machine)).toEqual([3, 3]);
+
+    useDesignStore.getState().spreadMachinesAcrossSelected();
+    expect(useDesignStore.getState().design.objects.map((o) => o.machine)).toEqual([1, 2]);
+  });
+
+  it('writes one independently decodable file per machine', () => {
+    const a = createObject('fill', [rectangleRing(20, 20, 20, 20)]);
+    const b = createObject('fill', [rectangleRing(120, 20, 20, 20)], 1, 1);
+    b.machine = 2;
+    useDesignStore.getState().addObject(a);
+    useDesignStore.getState().addObject(b);
+
+    const result = useDesignStore.getState().exportByMachine('dst');
+
+    expect(result.machines).toEqual([1, 2]);
+    expect(result.files).toHaveLength(2);
+    expect(result.files[0]!.filename).toContain('machine1');
+    expect(result.files[1]!.filename).toContain('machine2');
+    expect(readDst(result.files[0]!.bytes).stitches.length).toBeGreaterThan(0);
+    expect(readDst(result.files[1]!.bytes).stitches.length).toBeGreaterThan(0);
+  });
+
+  it('applies the cap compensation to compiled coordinates, not the preview', () => {
+    useDesignStore.getState().addObject(createObject('fill', [rectangleRing(30, 30, 20, 20)]));
+    const flat = useDesignStore
+      .getState()
+      .getCompiled()
+      .sequence.stitches.filter((stitch) => stitch.command === 'stitch')
+      .map((stitch) => stitch.x);
+
+    useDesignStore.getState().setCapWrap({ enabled: true, radiusMm: 90, compensate: true });
+    const cap = useDesignStore
+      .getState()
+      .getCompiled()
+      .sequence.stitches.filter((stitch) => stitch.command === 'stitch')
+      .map((stitch) => stitch.x);
+
+    // Flat geometry is 30..50 mm. Inverse projection stretches it away from
+    // the 90 mm crown centre, so both extremes must move outward.
+    expect(Math.min(...cap)).toBeLessThan(Math.min(...flat));
+    expect(Math.max(...cap)).toBeLessThan(Math.max(...flat));
+  });
+
+  it('exports SVG artwork from the compiled sequence', async () => {
+    useDesignStore.getState().addObject(createObject('fill', [rectangleRing(20, 20, 20, 20)]));
+
+    const result = await useDesignStore.getState().exportArtwork({ format: 'svg' });
+
+    expect(result.filename).toMatch(/\.svg$/);
+    expect(result.mime).toBe('image/svg+xml');
+    expect(new TextDecoder().decode(result.bytes)).toContain('<svg');
+  });
+
+  it('exports a printable PDF placement sheet', async () => {
+    useDesignStore.getState().addObject(createObject('fill', [rectangleRing(20, 20, 20, 20)]));
+
+    const result = await useDesignStore.getState().exportArtwork({
+      format: 'print',
+      scale: '1:1',
+      includeLegend: true,
+    });
+
+    expect(result.filename).toMatch(/-print\.pdf$/);
+    expect(new TextDecoder().decode(result.bytes).startsWith('%PDF')).toBe(true);
   });
 });

@@ -14,6 +14,10 @@ export const STITCH_TYPES: { id: StitchType; label: string }[] = [
   { id: 'contour', label: 'Contour' },
   { id: 'spiral', label: 'Spiral' },
   { id: 'motif', label: 'Motif' },
+  { id: 'sequin', label: 'Sequins (simulated)' },
+  { id: 'beading', label: 'Beading (simulated)' },
+  { id: 'chenille', label: 'Chenille pile' },
+  { id: 'schiffli', label: 'Schiffli lace' },
 ];
 
 /** The types a complex fill can be sewn as - what the "new fill stitch type"

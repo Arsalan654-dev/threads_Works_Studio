@@ -13,6 +13,7 @@ import type {
   ValidationIssue,
   ValidationResult,
 } from '../types.js';
+import { isSpecialtyStitch } from '../types.js';
 import { boundsOfStitches } from '../formats/dst.js';
 
 /** Hard limits that reflect real machine and thread constraints. */
@@ -210,6 +211,18 @@ export function validateSequence(
 
     if (obj.warnings.length > 0) {
       for (const w of obj.warnings) issues.push(issue('warning', 'OBJECT_WARNING', w, obj.id));
+    }
+
+    if (isSpecialtyStitch(obj.params.stitchType)) {
+      issues.push(
+        issue(
+          'info',
+          'SPECIALTY_SIMULATION',
+          `"${obj.name}" is a ${obj.params.stitchType} simulation sewn with standard penetrations. ` +
+            'DST/PES/EXP/JEF/VP3/TBF/HUS do not carry sequin, bead or chenille machine codes.',
+          obj.id,
+        ),
+      );
     }
   }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Open-project dialog.
  *
  * Lists what is actually in MongoDB, with live search. Deletion is guarded by
@@ -85,6 +85,7 @@ export function ProjectBrowser({ onClose, onOpened }: Props): React.ReactElement
       hoopId: fresh.design.hoopId,
       objects: fresh.design.objects,
       threadPalette: fresh.design.threadPalette,
+      capWrap: fresh.design.capWrap,
     });
   };
 

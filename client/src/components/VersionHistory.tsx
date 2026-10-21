@@ -103,6 +103,7 @@ export function VersionHistory({
         hoopId: fresh.design.hoopId,
         objects: fresh.design.objects,
         threadPalette: fresh.design.threadPalette,
+        capWrap: fresh.design.capWrap,
       });
       notify('Design restored');
       onClose();

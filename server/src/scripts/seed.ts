@@ -69,7 +69,7 @@ const HOOPS: SeedDoc[] = [
   {
     _id: 'hoop-cap-80x180',
     name: 'Cap frame 80 x 180 mm',
-    data: { width: 80, height: 180, shape: 'rect', safeMargin: 5 },
+    data: { width: 80, height: 180, shape: 'rect', safeMargin: 5, cap: true },
     builtin: true,
   },
 ];
@@ -122,7 +122,18 @@ const PALETTE: SeedDoc = {
  * underlay roughly doubles the row spacing of the top stitch.
  */
 function params(
-  stitchType: 'satin' | 'tatami' | 'run' | 'bean' | 'motif' | 'contour' | 'spiral',
+  stitchType:
+    | 'satin'
+    | 'tatami'
+    | 'run'
+    | 'bean'
+    | 'motif'
+    | 'contour'
+    | 'spiral'
+    | 'sequin'
+    | 'beading'
+    | 'chenille'
+    | 'schiffli',
   spacing: number,
   underlayType: 'none' | 'centerRun' | 'edgeRun' | 'zigzag' | 'tatami',
   underlaySpacing: number,
@@ -210,6 +221,30 @@ const PRESETS: SeedDoc[] = [
   },
   { _id: 'preset-spiral', name: 'Spiral', data: params('spiral', 2, 'none', 4), builtin: true },
   { _id: 'preset-motif', name: 'Motif', data: params('motif', 8, 'none', 4), builtin: true },
+  {
+    _id: 'preset-sequin',
+    name: 'Specialty - Sequins (simulated)',
+    data: params('sequin', 5, 'none', 4),
+    builtin: true,
+  },
+  {
+    _id: 'preset-beading',
+    name: 'Specialty - Beading (simulated)',
+    data: params('beading', 3, 'none', 4),
+    builtin: true,
+  },
+  {
+    _id: 'preset-chenille',
+    name: 'Specialty - Chenille pile',
+    data: params('chenille', 0.7, 'none', 4),
+    builtin: true,
+  },
+  {
+    _id: 'preset-schiffli',
+    name: 'Specialty - Schiffli lace',
+    data: params('schiffli', 1.5, 'none', 4),
+    builtin: true,
+  },
 ];
 
 /**

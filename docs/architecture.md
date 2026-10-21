@@ -5,31 +5,31 @@ workspaces that share one rule: **stitch generation lives in exactly one
 place**.
 
 ```
-                    ┌──────────────────────────────┐
-                    │  @threadworks/engine         │
-                    │  pure TypeScript, no Node    │
-                    │  APIs, no DOM APIs           │
-                    │                              │
-                    │  geometry → stitches → DST   │
-                    └──────────┬───────────────────┘
-                               │  same code, two hosts
-              ┌────────────────┴─────────────────┐
-              │                                  │
-   ┌──────────▼───────────┐          ┌───────────▼────────────┐
-   │  client (React/Vite) │          │  server (Express)      │
-   │  preview, editing,   │  HTTP    │  validation, storage,  │
-   │  playback, DST       │◄────────►│  backup/restore, seed  │
-   │  export in-browser   │  /api    │  serves client/dist    │
-   └──────────┬───────────┘          └───────────┬────────────┘
-              │                                  │
-              │  save / open                     │
-              └──────────────────┬───────────────┘
-                                 │
-                      ┌──────────▼──────────┐
-                      │  MongoDB            │
-                      │  127.0.0.1:27017    │
-                      │  embroidery_studio  │
-                      └─────────────────────┘
+                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                    â”‚  @threadworks/engine         â”‚
+                    â”‚  pure TypeScript, no Node    â”‚
+                    â”‚  APIs, no DOM APIs           â”‚
+                    â”‚                              â”‚
+                    â”‚  geometry â†’ stitches â†’ DST   â”‚
+                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                               â”‚  same code, two hosts
+              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+              â”‚                                  â”‚
+   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”          â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+   â”‚  client (React/Vite) â”‚          â”‚  server (Express)      â”‚
+   â”‚  preview, editing,   â”‚  HTTP    â”‚  validation, storage,  â”‚
+   â”‚  playback, DST       â”‚â—„â”€â”€â”€â”€â”€â”€â”€â”€â–ºâ”‚  backup/restore, seed  â”‚
+   â”‚  export in-browser   â”‚  /api    â”‚  serves client/dist    â”‚
+   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜          â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+              â”‚                                  â”‚
+              â”‚  save / open                     â”‚
+              â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                 â”‚
+                      â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                      â”‚  MongoDB            â”‚
+                      â”‚  127.0.0.1:27017    â”‚
+                      â”‚  embroidery_studio  â”‚
+                      â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ---
@@ -50,23 +50,25 @@ The engine is the product's core and is deliberately platform-neutral:
 
 ```
 EmbroideryObject  (source geometry + StitchParameters)
-      │
-      ▼
+      â”‚
+      â–¼
 generateUnderlay()            underlay layer: none | centerRun | edgeRun | zigzag | tatami
-      ▼
+      â–¼
 generateTopStitch()           satin | tatami | run | bean | motif | contour | spiral
-      ▼
-generateObjectStitches()      underlay + top, in design coordinates
-      ▼
+      â–¼
+generateObjectStitches()      specialty route (sequin/beading/chenille/schiffli) or underlay + top
+      â–¼
 buildSequence()               tie-in/tie-off locks, connectors, jumps, trims,
                               colour changes, optional colour-run optimisation
-      ▼
+      |
+applyCapCompensation()        inverse arcsin driver compensation when cap wrap is on
+      â–¼
 validateSequence()            machine-facing checks (see below)
-      ▼
+      â–¼
 StitchSequence                { stitches, colorCount, bounds, stats }
-      │
-      ├──► canvas renderer    what you see
-      └──► writeDst()         what the machine gets
+      â”‚
+      â”œâ”€â”€â–º canvas renderer    what you see
+      â””â”€â”€â–º writeDst()         what the machine gets
 ```
 
 ### Modules
@@ -82,13 +84,19 @@ StitchSequence                { stitches, colorCount, bounds, stats }
 | `underlay/`   | underlay strategies, plus `tieIn` / `tieOff` lock generation and entry/exit choice                                                                                                                                                                                                                                                                                                                                                     |
 | `sequencing/` | object ordering (nearest-travel auto-sequence, nearest colour block), connector/jump/trim decisions, colour changes                                                                                                                                                                                                                                                                                                                    |
 | `validation/` | `LIMITS` + `validateObject` + `validateSequence`                                                                                                                                                                                                                                                                                                                                                                                       |
+| `lettering/fonts.ts` | the six original skeleton font families, glyph resolution and family tracking; absent `font` keeps Studio Sans |
+| `clipart.ts` | 17 original parametric shapes, categories, search and physical placement |
+| `specialty.ts` | sequin, bead, chenille and schiffli simulation generators that emit ordinary penetrations |
+| `machines.ts` | group by 1-64 machine number, spread a selection, list assigned machines |
+| `capwrap.ts` | crown preview projection, inverse driver compensation and the width/radius check |
+| `artwork/` | millimetre SVG, direct PDF writer, tiled 1:1 print sheets and shared stitch-run geometry |
 | `formats/`    | one encoder + decoder per machine format: DST, PES/PEC, EXP, JEF, VP3, TBF, HUS, plus format detection                                                                                                                                                                                                                                                                                                                                 |
 
 ### Why the engine is a separate package
 
 Preview and export must never disagree. If the canvas used one implementation
 and the exporter another, "looks fine on screen, wrong on the machine" becomes
-possible — the failure mode that matters most in this domain. One engine, one
+possible â€” the failure mode that matters most in this domain. One engine, one
 sequence, two consumers.
 
 ---
@@ -112,7 +120,7 @@ sequence, two consumers.
 
 Express + TypeScript, strict Zod validation at every boundary.
 
-### Configuration — `src/config/env.ts`
+### Configuration â€” `src/config/env.ts`
 
 All configuration is parsed and validated **once at startup**. A bad value
 fails fast with a readable message instead of surfacing as a mysterious
@@ -125,14 +133,14 @@ runtime error. Notably:
   before listening.
 - `BACKUP_KEEP` bounds how many backups are retained.
 
-### Request pipeline — `src/app.ts`
+### Request pipeline â€” `src/app.ts`
 
 ```
-helmet → compression → JSON body limit → origin restriction
-   → /api routes
-   → /exports static
-   → built client (production) + SPA fallback
-   → notFound → errorHandler
+helmet â†’ compression â†’ JSON body limit â†’ origin restriction
+   â†’ /api routes
+   â†’ /exports static
+   â†’ built client (production) + SPA fallback
+   â†’ notFound â†’ errorHandler
 ```
 
 - **Origin restriction:** only `http://127.0.0.1:<port>` and
@@ -145,14 +153,14 @@ helmet → compression → JSON body limit → origin restriction
 - The SPA fallback explicitly skips `/api` and `/exports`, so a mistyped API
   route still returns a JSON 404 rather than the HTML shell.
 
-### Validation — `src/schemas/` + `src/middleware/validate.ts`
+### Validation â€” `src/schemas/` + `src/middleware/validate.ts`
 
 Zod schemas are the single definition of every request shape. The middleware
 parses and **replaces** the request body/query with the typed, defaulted
 result, so handlers only ever see validated data. Failures return 400 with a
 `fields[]` array naming each bad path.
 
-### Storage — `src/db/mongo.ts`
+### Storage â€” `src/db/mongo.ts`
 
 | Collection            | Contents                                                             |
 | --------------------- | -------------------------------------------------------------------- |
@@ -161,25 +169,25 @@ result, so handlers only ever see validated data. Failures return 400 with a
 | `threadPalettes`      | palette presets                                                      |
 | `hoopPresets`         | hoop presets                                                         |
 | `digitizingPresets`   | stitch-parameter presets                                             |
-| `motifPresets`        | motif library — shapes a fill repeats or a carve presses in          |
-| `applicationSettings` | editor settings (grid, autosave interval, …)                         |
+| `motifPresets`        | motif library â€” shapes a fill repeats or a carve presses in          |
+| `applicationSettings` | editor settings (grid, autosave interval, â€¦)                         |
 | `recentFiles`         | recently opened projects                                             |
 
 Indexes are created by `ensureIndexes()`, idempotently, at startup.
 
-### Optimistic concurrency — `src/routes/projects.ts`
+### Optimistic concurrency â€” `src/routes/projects.ts`
 
 Every project carries an integer `version`. A `PUT` may include
 `expectedVersion`; if it does not match the stored version the server returns
 **409 Conflict** and changes nothing. This is what stops an idle second tab
-from silently overwriting newer work — the alternative, last-write-wins, would
+from silently overwriting newer work â€” the alternative, last-write-wins, would
 lose designs without warning.
 
 ### Scripts
 
 | Script       | Purpose                                                                      |
 | ------------ | ---------------------------------------------------------------------------- |
-| `seed.ts`    | idempotently installs 8 hoops, the "Basic 18" palette, 11 digitizing presets |
+| `seed.ts`    | idempotently installs 8 hoops, the "Basic 18" palette, 15 digitizing presets |
 | `backup.ts`  | JSONL per collection + `manifest.json`, prunes to `BACKUP_KEEP`              |
 | `restore.ts` | replace (default) or merge; rehydrates BSON `_id`/dates                      |
 
@@ -199,13 +207,13 @@ React 18 + TypeScript + Vite + Zustand.
 | ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `designStore`    | the design document, selection, tool, undo/redo, derived compile | its mutations bump `rev` and invalidate history                                                                       |
 | `referenceStore` | hoops, palettes, presets, settings, connection status            | loaded once at startup, shared by many components                                                                     |
-| `playbackStore`  | stitch-player position/speed/playing                             | **transient UI state** — must never enter undo history, and must not invalidate the compiled-stitch cache every frame |
+| `playbackStore`  | stitch-player position/speed/playing                             | **transient UI state** â€” must never enter undo history, and must not invalidate the compiled-stitch cache every frame |
 
 ### Derived state instead of duplicated state
 
 `getCompiled()` memoises `{ sequence, validation }` against the store's `rev`.
 Every edit sets `compiled: null`, so the next read recompiles. Nothing else in
-the store stores stitch counts — the status bar, the player and the exporter
+the store stores stitch counts â€” the status bar, the player and the exporter
 all read the same object, so they cannot drift apart.
 
 ### Rendering
@@ -220,6 +228,12 @@ faster than React re-renders usefully, and repainting straight from the ref
 keeps panning smooth. Repaints are coalesced to at most one per animation
 frame.
 
+`preview3d` adds a shadow and highlight pass over satin runs without changing
+the stitch list. When `capWrap.enabled` is set, `render.ts` replaces the flat
+hoop background with a curved crown panel and projects each stitch through
+`capPreviewPoint()`; object outlines and node handles are hidden in that mode
+because they would otherwise sit on the flat, unwrapped coordinates.
+
 ### The stitch player
 
 Playback does not regenerate anything. It advances a _pointer_ into the
@@ -230,16 +244,22 @@ therefore O(1) in the engine and reuses the exact order the file will contain.
 ### Export
 
 Export runs the full pipeline, refuses on validation errors, and encodes with
-the engine's `writeDst()` — the same code path the tests round-trip through
+the engine's `writeDst()` â€” the same code path the tests round-trip through
 `readDst()`.
+
+**Export machines** groups visible objects by their 1-64 `machine` number and
+runs `compileDesign()` once per group, so each file has its own validation and
+its own stitch list. **Artwork** uses the same compiled sequence: the engine
+writes SVG and PDF directly in millimetres, `buildPrintSheet()` tiles a 1:1
+sheet, and the browser-only `files/artwork.ts` rasterises PNG through a canvas.
 
 ### Stitch video rendering
 
 Rendering a movie is the editor's slowest job by a wide margin (about 1.5 s for
 a 10,000-stitch design), so `client/src/video/gif.ts` hands the work to a Web
 Worker (`gifWorker.ts`) and returns a promise. The worker is a thin shell around
-the same pure `encodeStitchMovie()` the tests call directly — the engine has no
-DOM in it, which is exactly what makes the move possible — and it transfers the
+the same pure `encodeStitchMovie()` the tests call directly â€” the engine has no
+DOM in it, which is exactly what makes the move possible â€” and it transfers the
 finished buffer back rather than copying it. Where a worker cannot be created
 (jsdom, a `file://` page, a browser refusing module workers), the facade calls
 the encoder on the calling thread: one code path, one result, only a different
@@ -256,8 +276,8 @@ Several choices are about _not_ being able to lie:
    `sequence.stats`, which is derived from the array that gets encoded.
 2. **Export refuses rather than degrades.** A design outside the hoop is a hard
    error, not a warning that gets ignored.
-3. **No silent fallbacks.** No hoop → validation skips the hoop check
-   explicitly; missing database → Save reports failure; unknown hoop id → no
+3. **No silent fallbacks.** No hoop â†’ validation skips the hoop check
+   explicitly; missing database â†’ Save reports failure; unknown hoop id â†’ no
    hoop, rather than validating against a frame the user cannot select.
 4. **Only formats that are really implemented are offered.** See
    [format-support.md](format-support.md).
@@ -268,12 +288,12 @@ Several choices are about _not_ being able to lie:
 
 | Layer      | Approach                                                                                                                                 |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Engine     | unit + integration; DST encode→decode round trips; each generator; sequence and validation rules                                         |
+| Engine     | unit + integration; DST encodeâ†’decode round trips; each generator; sequence and validation rules; fonts, clipart, artwork, cap wrap, machine grouping and specialty simulations                                         |
 | Server     | `supertest` against the real Express app with a test database; schema, concurrency, CRUD                                                 |
-| Client     | Vitest + Testing Library; store logic, geometry, hit testing, playback, renderer behaviour through a recording 2D context                |
-| End-to-end | `npm run smoke` — 119 checks over live HTTP against a running server, including real DST / PES / EXP / JEF / VP3 / TBF / HUS round trips |
+| Client     | Vitest + Testing Library; store logic, geometry, hit testing, playback, renderer behaviour through a recording 2D context; clipart browser, artwork dialog, inspector controls and per-machine export                |
+| End-to-end | `npm run smoke` â€” 119 checks over live HTTP against a running server, including real DST / PES / EXP / JEF / VP3 / TBF / HUS round trips |
 
 The renderer test is worth calling out: jsdom has no canvas, so drawing is
 observed through a stand-in that records what was submitted. That genuinely
 verifies _how much_ was drawn (e.g. that `stitchLimit` shortens the sequence),
-but it does not verify pixels — and no claim is made that it does.
+but it does not verify pixels â€” and no claim is made that it does.

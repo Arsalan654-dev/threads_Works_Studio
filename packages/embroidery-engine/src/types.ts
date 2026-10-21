@@ -79,7 +79,27 @@ export type ObjectType =
   | 'spiral';
 
 /** High-level stitch strategy for an object. */
-export type StitchType = 'satin' | 'tatami' | 'run' | 'bean' | 'motif' | 'contour' | 'spiral';
+export type StitchType =
+  | 'satin'
+  | 'tatami'
+  | 'run'
+  | 'bean'
+  | 'motif'
+  | 'contour'
+  | 'spiral'
+  /** Specialty decorative stitches, simulated with standard needle penetrations. */
+  | 'sequin'
+  | 'beading'
+  | 'chenille'
+  | 'schiffli';
+
+/** The specialty stitch types and the order the UI lists them. */
+export const SPECIALTY_STITCH_TYPES = ['sequin', 'beading', 'chenille', 'schiffli'] as const;
+export type SpecialtyStitchType = (typeof SPECIALTY_STITCH_TYPES)[number];
+
+export function isSpecialtyStitch(type: StitchType): type is SpecialtyStitchType {
+  return (SPECIALTY_STITCH_TYPES as readonly string[]).includes(type);
+}
 
 /** Underlay strategies. */
 export type UnderlayType = 'none' | 'centerRun' | 'edgeRun' | 'zigzag' | 'tatami';
@@ -452,6 +472,9 @@ export interface EntryExit {
  * or the size re-sews the letters rather than leaving stale geometry behind.
  * `path` stays empty for these objects and is never the source of truth.
  */
+/** Original single-stroke font families shipped with the engine. */
+export type FontId = 'studio' | 'rounded' | 'block' | 'script' | 'serif' | 'mono';
+
 export interface LetteringSpec {
   text: string;
   /** Cap height in mm. */
@@ -464,6 +487,11 @@ export interface LetteringSpec {
   rotation: number;
   /** Satin stroke width in mm. */
   width: number;
+  /**
+   * Original single-stroke family. Optional; absent means the original
+   * studio sans, so older projects keep exactly the lettering they had.
+   */
+  font?: FontId;
   /**
    * Horizontal width factor: 1 keeps the font's proportions, 0.6 condenses,
    * 1.5 widens. Optional; absent means 1.
@@ -563,6 +591,11 @@ export interface EmbroideryObject {
   locked: boolean;
   hidden: boolean;
   groupId: string | null;
+  /**
+   * Production machine assignment, 1-based. Optional; absent means machine 1.
+   * A machine split exports only the objects assigned to each machine.
+   */
+  machine?: number;
   /** Validation messages produced by the last engine run. */
   warnings: string[];
 }
@@ -641,10 +674,31 @@ export interface DesignDocument {
   hoopId: string | null;
   objects: EmbroideryObject[];
   threadPalette: ThreadColor[];
+  /**
+   * Cap-frame wrap settings. Optional and absent for ordinary flat designs.
+   * When enabled, `compensate` pre-distorts the exported stitches so a design
+   * authored flat sews correctly on the cylindrical cap surface.
+   */
+  capWrap?: CapWrapSettings;
   createdAt: string;
   updatedAt: string;
   version: number;
 }
+
+/** Cylindrical cap-frame wrap and driver compensation. */
+export interface CapWrapSettings {
+  enabled: boolean;
+  /** Radius of the cap crown, mm. 75-110 mm covers common cap frames. */
+  radiusMm: number;
+  /** Pre-distort exported stitches to counter the cylinder. */
+  compensate: boolean;
+}
+
+export const DEFAULT_CAP_WRAP: CapWrapSettings = {
+  enabled: false,
+  radiusMm: 90,
+  compensate: true,
+};
 
 /** A thread colour reference. */
 export interface ThreadColor {
@@ -665,4 +719,6 @@ export interface Hoop {
   shape: 'rect' | 'round' | 'oval';
   /** Safe stitching area inset from the hoop edge in mm. */
   safeMargin: number;
+  /** True for a curved cap frame; absent means a flat frame. */
+  cap?: boolean;
 }

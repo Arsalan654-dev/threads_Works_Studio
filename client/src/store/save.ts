@@ -24,6 +24,7 @@ function designPayload(design: DesignState) {
     hoopId: design.hoopId,
     objects: design.objects,
     threadPalette: design.threadPalette,
+    capWrap: design.capWrap,
   };
 }
 

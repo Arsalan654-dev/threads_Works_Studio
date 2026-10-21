@@ -5,8 +5,8 @@ types and parameters, watch the design sew out, and export a genuine machine
 file - Tajima `.dst`, Brother `.pes`, Melco `.exp`, Janome `.jef`, Husqvarna
 `.vp3`, `.hus` or `.tbf` - for your machine.
 
-MERN stack — **M**ongoDB (local or Atlas), **E**xpress, **R**eact + TypeScript,
-**N**ode — built as an npm workspace with a shared embroidery engine package.
+MERN stack â€” **M**ongoDB (local or Atlas), **E**xpress, **R**eact + TypeScript,
+**N**ode â€” built as an npm workspace with a shared embroidery engine package.
 
 Local is the default: the server binds to `127.0.0.1`, needs no account, and
 works without a CDN. The same build can be hosted on Vercel with MongoDB Atlas;
@@ -21,7 +21,7 @@ Requirements: **Node.js 20+** and a **local MongoDB** service on
 
 |                          |                                                                |
 | ------------------------ | -------------------------------------------------------------- |
-| **Normal use**           | Double-click `start.bat` → opens <http://127.0.0.1:4000>       |
+| **Normal use**           | Double-click `start.bat` â†’ opens <http://127.0.0.1:4000>       |
 | **Stop it**              | Double-click `shutdown.bat`                                    |
 | **Changing code**        | Double-click `dev.bat` (hot reload at <http://127.0.0.1:5173>) |
 | **Back up your designs** | `backup.bat`                                                   |
@@ -39,7 +39,7 @@ npm run build        # engine + server + client
 npm start            # production server on http://127.0.0.1:4000
 
 npm run dev          # all three watchers for development
-npm test             # 1,158 tests across engine, server and client
+npm test             # 1,202 tests across engine, server and client
 npm run typecheck    # strict TS across every workspace
 npm run smoke        # 119 end-to-end checks against a running server
 npm run lint
@@ -49,40 +49,57 @@ npm run lint
 
 ## What it does
 
-- **Manual digitizing** — Input A (satin column), Complex Fill, Run, Bean,
+- **Manual digitizing** â€” Input A (satin column), Complex Fill, Run, Bean,
   Rectangle, Circle, plus click-to-place polyline tools.
-- **Stitch types** — satin, tatami, run, bean, motif, contour, spiral; and on a
+- **Stitch types** - satin, tatami, run, bean, motif, contour, spiral; and on a
   tatami fill a **fill pattern**: plain weave, programmed split, motif stamps,
-  contour or spiral.
-- **Stitch parameters** — density/spacing, angle, minimum and maximum stitch
+  contour or spiral. **Sequins, beading, chenille and schiffli** are available as
+  disclosed simulations built from standard needle penetrations.
+- **Stitch parameters** â€” density/spacing, angle, minimum and maximum stitch
   length, pull compensation, underlay type and settings, tie-in / tie-off, and a
   hand-placed **entry / exit**.
-- **3D foam (puff)** and **carving stamp** — the two techniques a shop actually
+- **3D foam (puff)** and **carving stamp** â€” the two techniques a shop actually
   gets asked for, both per-object.
-- **Lettering** with a single-stroke font: text, size, spacing, slant, rotation.
-- **Transforms and grouping** — flip, rotate, scale, group / ungroup, node
+- **Lettering** with six original single-stroke font cuts - Studio Sans, Rounded,
+  Block, Script, Serif and Mono - plus text, size, spacing, slant and rotation.
+- **Original clipart browser** - 17 built-in shapes in categories with search;
+  every shape inserts as editable geometry, not a flat image.
+- **Artwork and print output** - real SVG, PDF and PNG proofs from the compiled
+  stitches, plus a tiled 1:1 printable placement sheet with crop marks and a
+  thread legend.
+- **Transforms and grouping** â€” flip, rotate, scale, group / ungroup, node
   editing.
-- **Auto-digitizing from a photo** — colour reduction, outline tracing with
+- **Auto-digitizing from a photo** â€” colour reduction, outline tracing with
   holes, per-shape fill angle; also plain **image tracing**.
-- **Thread palette** — create, edit, recolour and reorder colours; pick from the
+- **Thread palette** â€” create, edit, recolour and reorder colours; pick from the
   seeded "Basic 18" palette; blend two or more fills.
-- **Hoops** — 8 built-in hoops including a round frame and a cap frame, an
+- **Hoops** â€” 8 built-in hoops including a round frame and a cap frame, an
   auto-hoop that picks the smallest fit, **multi-hoop splitting** with a shared
   overlap band and registration crosses, and out-of-hoop validation.
-- **Stitch player** — play the design sew out stitch by stitch, scrub the
+- **Cap-frame digitizing** - a curved crown preview plus inverse-sine driver
+  compensation, so a wide design sews at the drawn width around the cap.
+- **Specialty effects** - sequins, beading, chenille pile and schiffli lace are
+  generated as standard needle penetrations, with the format limitation stated
+  in validation rather than hidden.
+- **Production machines** - assign objects to machine numbers, spread a
+  selection across machines, and export one independently valid file per
+  machine.
+- **Lit / 3D preview** - an optional shadow and highlight pass over the threads;
+  it changes the screen only, never the exported file.
+- **Stitch player** â€” play the design sew out stitch by stitch, scrub the
   sequence, change speed. It replays the _real_ compiled sequence.
 - **Undo / redo** with a configurable depth, multi-select, duplicate,
   snap-to-grid.
-- **Save and reopen** — projects live in MongoDB with optimistic concurrency,
-  so a stale tab cannot silently overwrite newer work — plus **version
+- **Save and reopen** â€” projects live in MongoDB with optimistic concurrency,
+  so a stale tab cannot silently overwrite newer work â€” plus **version
   history** (checkpoints, restore) and a **recent files** list.
-- **Export** — Tajima `.dst`, Brother `.pes`, Melco `.exp`, Janome `.jef`,
+- **Export** â€” Tajima `.dst`, Brother `.pes`, Melco `.exp`, Janome `.jef`,
   Husqvarna `.vp3`, `.tbf` and `.hus`, each encoded by a real encoder from the
   same sequence you previewed. **Import** reads those formats back for preview,
   conversion or filming.
-- **Stitch video** — the design sewing out as an animated GIF, with real thread
+- **Stitch video** â€” the design sewing out as an animated GIF, with real thread
   colours, a needle marker and a live counter.
-- **Validation** — stitch length, hoop overrun, colour index, and more, shown in
+- **Validation** â€” stitch length, hoop overrun, colour index, and more, shown in
   the status bar as you work.
 
 ---
@@ -106,13 +123,13 @@ short and it is honest.
 
 ```
 threadworks-studio/
-├─ packages/embroidery-engine/   pure stitch generation + DST codec (no Node APIs)
-├─ server/                       Express API, MongoDB, seed/backup/restore
-├─ client/                       React + Vite editor
-├─ scripts/                      smoke test
-├─ docs/
-├─ start.bat / dev.bat / shutdown.bat / backup.bat / restore.bat
-└─ .env                          created from .env.example on first run
+â”œâ”€ packages/embroidery-engine/   pure stitch generation + DST codec (no Node APIs)
+â”œâ”€ server/                       Express API, MongoDB, seed/backup/restore
+â”œâ”€ client/                       React + Vite editor
+â”œâ”€ scripts/                      smoke test
+â”œâ”€ docs/
+â”œâ”€ start.bat / dev.bat / shutdown.bat / backup.bat / restore.bat
+â””â”€ .env                          created from .env.example on first run
 ```
 
 The engine is deliberately platform-neutral: it never touches `Buffer` or the
@@ -127,8 +144,8 @@ Node for the API and CLI.
 npm test
 ```
 
-Current state: **696 tests passing** — 405 engine, 52 server, 239 client — plus a
-110-check live smoke test (`npm run smoke`, needs the server running).
+Current state: **1,202 tests passing** â€” 723 engine, 76 server, 403 client â€” plus a
+119-check live smoke test (`npm run smoke`, needs the server running).
 
 The tests cover what actually matters: DST / PES / EXP / JEF / VP3 / TBF
 encode-decode round trips, with the first six additionally compared **byte for
@@ -138,7 +155,10 @@ pattern, the foam
 and carve techniques, multi-hoop splitting with overlap and registration marks,
 sequence building and validation, HTTP validation, optimistic-concurrency
 conflicts, version history and recent files, and the editor's store, geometry,
-lettering, transform and playback logic.
+lettering, transform and playback logic, the six derived font families, the
+clipart catalogue, SVG/PDF/PNG artwork and 1:1 print tiling, cap preview and
+driver compensation, multi-machine splitting, and the four specialty stitch
+simulations.
 
 ---
 
@@ -153,7 +173,7 @@ that JEF files index into, taken from
 [pyembroidery](https://github.com/EmbroidePy/pyembroidery) (MIT License,
 Copyright (c) 2018) and kept as **data** in
 `packages/embroidery-engine/src/formats/jefColors.ts`, where its source is
-credited in place. No code was copied from it — pyembroidery was used as a
+credited in place. No code was copied from it â€” pyembroidery was used as a
 _read-only reference_ for checking our encoders byte for byte, which is what
 `docs/format-support.md` records.
 

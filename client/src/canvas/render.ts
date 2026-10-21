@@ -12,6 +12,7 @@
  */
 
 import type {
+  CapWrapSettings,
   CompoundPath,
   EmbroideryObject,
   Hoop,
@@ -19,7 +20,7 @@ import type {
   Stitch,
   ThreadColor,
 } from '@threadworks/engine';
-import { letteringBounds, letteringStrokes } from '@threadworks/engine';
+import { capPreviewPoint, letteringBounds, letteringStrokes } from '@threadworks/engine';
 
 export interface View {
   /** Pixels per millimetre. */
@@ -46,6 +47,12 @@ export interface RenderOptions {
   showUnderlay: boolean;
   showStitches: boolean;
   showOutlines: boolean;
+  /** Lit/3D thread preview. Optional; absent keeps the flat renderer. */
+  render3d?: boolean;
+  /** Curved cap preview; stitches are projected onto the crown. */
+  capWrap?: CapWrapSettings | null;
+  /** Flat design X that becomes the centre of the crown. */
+  capCenterX?: number;
   gridSize: number;
   /**
    * Spacing of the major grid lines in mm.
@@ -80,6 +87,25 @@ export interface RenderOptions {
 
 export const MIN_SCALE = 0.1;
 export const MAX_SCALE = 40;
+
+/**
+ * Lighten (positive) or darken (negative) a #RRGGBB colour by mixing toward
+ * white or black. Used for the highlight and shadow passes of the lit preview;
+ * it is pure and exported so the shading can be tested without a canvas.
+ */
+export function shadeHex(hex: string, amount: number): string {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return hex;
+  const int = parseInt(match[1]!, 16);
+  const mix = Math.max(-1, Math.min(1, amount));
+  const channel = (shift: number): number => {
+    const base = (int >> shift) & 255;
+    return Math.round(mix >= 0 ? base + (255 - base) * mix : base * (1 + mix));
+  };
+  return `#${[channel(16), channel(8), channel(0)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')}`;
+}
 
 export function toScreen(p: Point, view: View): Point {
   return { x: p.x * view.scale + view.offsetX, y: p.y * view.scale + view.offsetY };
@@ -141,25 +167,30 @@ const THEME = {
 
 export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
   const { view, width, height } = options;
+  const capMode = options.capWrap?.enabled === true;
 
   ctx.save();
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = THEME.background;
   ctx.fillRect(0, 0, width, height);
 
-  drawHoop(ctx, options);
-  if (options.showGrid) drawGrid(ctx, options);
+  if (capMode) {
+    drawCapCrown(ctx, options);
+  } else {
+    drawHoop(ctx, options);
+    if (options.showGrid) drawGrid(ctx, options);
+  }
 
   // Appliqué patches read as fabric, not as empty space with a border around
   // it. The tint is preview only: it is not a stitch and never reaches an
   // encoder, it just makes the patch visible under the placement and finish.
-  drawAppliqueFabric(ctx, options);
+  if (!capMode) drawAppliqueFabric(ctx, options);
 
   if (options.showStitches && options.stitches) {
     drawStitches(ctx, options);
   }
 
-  if (options.showOutlines) {
+  if (options.showOutlines && !capMode) {
     const selected = new Set(options.selection);
     // Draw unselected first so the highlighted object sits on top.
     for (const obj of options.objects) {
@@ -173,7 +204,7 @@ export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): v
   }
 
   // Node handles sit above everything so they stay clickable.
-  if (options.nodeEdit) {
+  if (options.nodeEdit && !capMode) {
     const obj = options.objects.find((o) => o.id === options.nodeEdit!.objectId);
     if (obj) drawNodes(ctx, obj, view, options.nodeEdit.nodes);
   }
@@ -181,6 +212,55 @@ export function render(ctx: CanvasRenderingContext2D, options: RenderOptions): v
   ctx.restore();
 
   if (options.showRulers) drawRulers(ctx, options);
+}
+
+function drawCapCrown(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
+  const { view, hoop, designWidth, designHeight, capWrap } = options;
+  if (!capWrap) return;
+  const w = hoop?.width ?? designWidth;
+  const h = hoop?.height ?? designHeight;
+  const topLeft = toScreen({ x: 0, y: 0 }, view);
+  const width = w * view.scale;
+  const height = h * view.scale;
+  const curve = Math.min(height * 0.1, 26 * view.scale);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(topLeft.x, topLeft.y + curve);
+  ctx.quadraticCurveTo(topLeft.x + width / 2, topLeft.y - curve * 0.7, topLeft.x + width, topLeft.y + curve);
+  ctx.lineTo(topLeft.x + width, topLeft.y + height - curve);
+  ctx.quadraticCurveTo(
+    topLeft.x + width / 2,
+    topLeft.y + height + curve * 0.7,
+    topLeft.x,
+    topLeft.y + height - curve,
+  );
+  ctx.closePath();
+  ctx.fillStyle = THEME.designFill;
+  ctx.fill();
+  ctx.strokeStyle = THEME.hoopOutline;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Centre seam and side seams make the curvature legible even when the
+  // design is empty.
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(topLeft.x, topLeft.y + curve);
+  ctx.lineTo(topLeft.x, topLeft.y + height - curve);
+  ctx.moveTo(topLeft.x + width / 2, topLeft.y);
+  ctx.lineTo(topLeft.x + width / 2, topLeft.y + height);
+  ctx.moveTo(topLeft.x + width, topLeft.y + curve);
+  ctx.lineTo(topLeft.x + width, topLeft.y + height - curve);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(`Cap crown preview - ${capWrap.radiusMm} mm radius`, topLeft.x + 8, topLeft.y + 16);
+  ctx.restore();
 }
 
 function drawHoop(ctx: CanvasRenderingContext2D, options: RenderOptions): void {
@@ -323,7 +403,11 @@ function drawStitches(ctx: CanvasRenderingContext2D, options: RenderOptions): vo
       : Math.min(stitches.length, Math.max(0, Math.floor(options.stitchLimit)));
 
   const view = options.view;
-  const toX = (s: Stitch): number => s.x * view.scale + view.offsetX;
+  const cap = options.capWrap?.enabled ? options.capWrap : null;
+  const capCenterX = options.capCenterX ?? options.designWidth / 2;
+  const projectX = (s: Stitch): number =>
+    cap ? capPreviewPoint(s, { settings: cap, centerX: capCenterX }).x : s.x;
+  const toX = (s: Stitch): number => projectX(s) * view.scale + view.offsetX;
   const toY = (s: Stitch): number => s.y * view.scale + view.offsetY;
 
   ctx.save();
@@ -341,6 +425,7 @@ function drawStitches(ctx: CanvasRenderingContext2D, options: RenderOptions): vo
 
   let running = false;
   let runStyle = '';
+  let runColor = '';
   let runLength = 0;
   /** Position of the most recent penetration, needed to dot a lone stitch. */
   let lastPoint: { x: number; y: number } | null = null;
@@ -349,6 +434,7 @@ function drawStitches(ctx: CanvasRenderingContext2D, options: RenderOptions): vo
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = isLock ? lockWidth : threadWidth;
+    runColor = color;
   };
 
   /**
@@ -360,16 +446,61 @@ function drawStitches(ctx: CanvasRenderingContext2D, options: RenderOptions): vo
    */
   const flush = (): void => {
     if (!running) return;
+    const lit = options.render3d === true && runStyle.startsWith('T:') && runColor !== '';
     if (runLength === 1 && lastPoint) {
-      ctx.beginPath();
-      ctx.arc(lastPoint.x, lastPoint.y, ctx.lineWidth / 2, 0, Math.PI * 2);
-      ctx.fill();
+      if (lit) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = Math.max(1, view.scale * 0.35);
+        ctx.shadowOffsetX = Math.max(1, threadWidth * 0.3);
+        ctx.shadowOffsetY = Math.max(1, threadWidth * 0.3);
+        ctx.beginPath();
+        ctx.arc(lastPoint.x, lastPoint.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.fillStyle = shadeHex(runColor, 0.45);
+        ctx.beginPath();
+        ctx.arc(
+          lastPoint.x - threadWidth * 0.18,
+          lastPoint.y - threadWidth * 0.18,
+          Math.max(0.6, ctx.lineWidth * 0.3),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(lastPoint.x, lastPoint.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (lit) {
+      // Three passes over the same path: a soft cast shadow, the thread body,
+      // then a narrow highlight offset toward the light. The path is retained
+      // by the canvas so this costs no extra geometry work.
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = Math.max(1, view.scale * 0.5);
+      ctx.shadowOffsetX = Math.max(1, threadWidth * 0.35);
+      ctx.shadowOffsetY = Math.max(1, threadWidth * 0.35);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = shadeHex(runColor, 0.42);
+      ctx.lineWidth = Math.max(0.7, ctx.lineWidth * 0.32);
+      ctx.translate(-threadWidth * 0.14, -threadWidth * 0.14);
+      ctx.stroke();
+      ctx.restore();
     } else {
       ctx.stroke();
     }
     running = false;
     runLength = 0;
     runStyle = '';
+    runColor = '';
   };
 
   for (let i = 0; i < limit; i++) {

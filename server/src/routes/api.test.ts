@@ -523,6 +523,72 @@ describe('projects', () => {
     const after = await request(app).get(`/api/projects/${created.body.id}`);
     expect(after.status).toBe(404);
   });
+
+  it('round-trips fonts, specialty stitches, machine assignment and cap wrap', async () => {
+    const base = {
+      ...sampleDesign(),
+      capWrap: { enabled: true, radiusMm: 90, compensate: true },
+    };
+    Object.assign(base.objects[0]!, { machine: 2 });
+    base.objects[0]!.params.stitchType = 'sequin';
+    base.objects.push({
+      id: 'text-1',
+      name: 'Text "A"',
+      type: 'lettering',
+      path: { rings: [] },
+      transform: { x: 10, y: 10 },
+      colorIndex: 0,
+      params: base.objects[0]!.params,
+      entryExit: { entry: null, exit: null },
+      order: 1,
+      locked: false,
+      hidden: false,
+      groupId: null,
+      warnings: [],
+      lettering: {
+        text: 'A',
+        height: 20,
+        spacing: 0,
+        slant: 0,
+        rotation: 0,
+        width: 1,
+        font: 'script',
+      },
+    } as (typeof base.objects)[number]);
+
+    const created = await request(app)
+      .post('/api/projects')
+      .send({ name: 'Phase NO', design: base });
+    expect(created.status).toBe(201);
+
+    const fetched = await request(app).get(`/api/projects/${created.body.id}`);
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.design.capWrap).toEqual({
+      enabled: true,
+      radiusMm: 90,
+      compensate: true,
+    });
+    expect(fetched.body.design.objects[0].machine).toBe(2);
+    expect(fetched.body.design.objects[0].params.stitchType).toBe('sequin');
+    expect(fetched.body.design.objects[1].lettering.font).toBe('script');
+  });
+
+  it('defaults machine and cap wrap for designs saved before they existed', async () => {
+    const design = sampleDesign();
+
+    const created = await request(app)
+      .post('/api/projects')
+      .send({ name: 'Legacy machine', design });
+    expect(created.status).toBe(201);
+
+    const fetched = await request(app).get(`/api/projects/${created.body.id}`);
+    expect(fetched.body.design.objects[0].machine).toBe(1);
+    expect(fetched.body.design.capWrap).toEqual({
+      enabled: false,
+      radiusMm: 90,
+      compensate: true,
+    });
+  });
 });
 
 describe('design history and recent files', () => {
@@ -890,6 +956,12 @@ describe('settings', () => {
   it('rejects a major grid beyond the supported range', async () => {
     const res = await request(app).put('/api/settings').send({ gridMajorSize: 500 });
     expect(res.status).toBe(400);
+  });
+
+  it('keeps the lit/3D preview preference', async () => {
+    const res = await request(app).put('/api/settings').send({ preview3d: true });
+    expect(res.status).toBe(200);
+    expect(res.body.preview3d).toBe(true);
   });
 
   it('rejects an out-of-range autosave interval', async () => {

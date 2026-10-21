@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import type React from 'react';
 /**
  * Right-hand inspector: object parameters, thread palette and hoop.
@@ -19,6 +19,7 @@ import type {
 } from '@threadworks/engine';
 import { objectCenter } from '@threadworks/engine';
 import { DEFAULT_APPLIQUE, appliqueProblem } from '@threadworks/engine';
+import { FONT_LIBRARY, capWrapProblem, isSpecialtyStitch } from '@threadworks/engine';
 import { useDesignStore } from '../store/designStore.js';
 import { referenceStore, type HoopEntry } from '../store/referenceStore.js';
 import { defaultParams, nextObjectId } from '../model/defaults.js';
@@ -377,8 +378,12 @@ function HoopSection({ hoopId }: { hoopId: string | null }): React.ReactElement 
   const hoops = referenceStore((s) => s.hoops);
   const setSize = useDesignStore((s) => s.setSize);
   const autoHoop = useDesignStore((s) => s.autoHoop);
+  const capWrap = useDesignStore((s) => s.design.capWrap);
+  const designWidth = useDesignStore((s) => s.design.width);
+  const setCapWrap = useDesignStore((s) => s.setCapWrap);
   const [message, setMessage] = useState<string | null>(null);
   const [allowRotation, setAllowRotation] = useState(true);
+  const capProblem = capWrapProblem(capWrap, designWidth);
 
   const apply = (value: string): void => {
     if (value === '') {
@@ -388,6 +393,7 @@ function HoopSection({ hoopId }: { hoopId: string | null }): React.ReactElement 
     const entry = hoops.find((h) => h.id === value);
     if (!entry) return;
     setSize(entry.width, entry.height, entry.id);
+    if (entry.cap) setCapWrap({ enabled: true });
   };
 
   const runAutoHoop = (): void => {
@@ -411,6 +417,7 @@ function HoopSection({ hoopId }: { hoopId: string | null }): React.ReactElement 
           {hoops.map((h: HoopEntry) => (
             <option key={h.id} value={h.id}>
               {h.name}
+              {h.cap ? ' (cap)' : ''}
             </option>
           ))}
         </select>
@@ -444,6 +451,54 @@ function HoopSection({ hoopId }: { hoopId: string | null }): React.ReactElement 
         <p className="muted small" role="status" data-testid="autohoop-message">
           {message}
         </p>
+      )}
+
+      <hr />
+      <h3>Cap frame</h3>
+      <label className="field checkbox">
+        <input
+          type="checkbox"
+          checked={capWrap.enabled}
+          onChange={(e) => setCapWrap({ enabled: e.target.checked })}
+          data-testid="cap-frame-enabled"
+        />
+        <span>Wrap on a curved cap frame</span>
+      </label>
+      {capWrap.enabled && (
+        <>
+          <label className="field">
+            <span>Crown radius (mm)</span>
+            <input
+              type="number"
+              min="40"
+              max="250"
+              step="1"
+              value={capWrap.radiusMm}
+              onChange={(e) => setCapWrap({ radiusMm: Number(e.target.value) })}
+              data-testid="cap-frame-radius"
+            />
+            <small className="muted">The arc the front panel follows, not the cap diameter.</small>
+          </label>
+          <label className="field checkbox">
+            <input
+              type="checkbox"
+              checked={capWrap.compensate}
+              onChange={(e) => setCapWrap({ compensate: e.target.checked })}
+              data-testid="cap-frame-compensate"
+            />
+            <span>Compensate exported stitches for the driver</span>
+          </label>
+          <p className="muted small">
+            The preview projects the flat design onto the crown. Compensation applies the inverse
+            arcsin stretch to every exported file, so the cap sews at the drawn width. Turn it off
+            only for a machine driver that already compensates.
+          </p>
+          {capProblem && (
+            <p className="status-issue error" role="alert" data-testid="cap-frame-problem">
+              {capProblem}
+            </p>
+          )}
+        </>
       )}
     </section>
   );
@@ -781,6 +836,24 @@ function LetteringSection({
           onChange={(e) => setSpec({ text: e.target.value })}
           data-testid="lettering-text"
         />
+      </label>
+
+      <label className="field">
+        <span>Font</span>
+        <select
+          value={spec.font ?? 'studio'}
+          onChange={(e) => setSpec({ font: e.target.value as NonNullable<LetteringSpec['font']> })}
+          data-testid="lettering-font"
+        >
+          {FONT_LIBRARY.map((font) => (
+            <option key={font.id} value={font.id}>
+              {font.name} — {font.category}
+            </option>
+          ))}
+        </select>
+        <small className="muted">
+          {FONT_LIBRARY.find((font) => font.id === (spec.font ?? 'studio'))?.description}
+        </small>
       </label>
 
       <label className="field">
@@ -1166,6 +1239,8 @@ function ObjectSection({
 }): React.ReactElement {
   const updateObject = useDesignStore((s) => s.updateObject);
   const updateParams = useDesignStore((s) => s.updateParams);
+  const assignMachineToSelected = useDesignStore((s) => s.assignMachineToSelected);
+  const spreadMachinesAcrossSelected = useDesignStore((s) => s.spreadMachinesAcrossSelected);
   const armed = useDesignStore((s) => s.pendingEntryExit);
 
   const p = object.params;
@@ -1255,6 +1330,46 @@ function ObjectSection({
         />
       </label>
 
+      <label className="field">
+        <span>Production machine</span>
+        <input
+          type="number"
+          min="1"
+          max="64"
+          step="1"
+          value={object.machine ?? 1}
+          onChange={(e) =>
+            updateObject(object.id, {
+              machine: Math.min(64, Math.max(1, Math.round(Number(e.target.value) || 1))),
+            })
+          }
+          data-testid="object-machine"
+        />
+        <small className="muted">
+          Export by machine writes one independently valid file for each number. Objects default to
+          machine 1.
+        </small>
+      </label>
+      {multiCount > 1 && (
+        <div className="button-row">
+          <button
+            type="button"
+            onClick={() => assignMachineToSelected(object.machine ?? 1)}
+            data-testid="assign-machine-selected"
+          >
+            Use machine {object.machine ?? 1} for all selected
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={spreadMachinesAcrossSelected}
+            data-testid="spread-machines"
+          >
+            Spread one per machine
+          </button>
+        </div>
+      )}
+
       {object.type === 'lettering' && object.lettering ? (
         <LetteringSection object={object} spec={object.lettering} />
       ) : (
@@ -1287,13 +1402,21 @@ function ObjectSection({
         </label>
       )}
 
+      {isSpecialtyStitch(p.stitchType) && (
+        <p className="muted small" data-testid="specialty-note">
+          This is a sewn simulation: standard needle penetrations recreate the look, because
+          DST/PES/EXP/JEF/VP3/TBF/HUS do not carry sequin, bead or chenille machine codes. Density
+          controls the repeat pitch for this style.
+        </p>
+      )}
+
       <label className="field">
         <span>Density (spacing, mm)</span>
         <input
           type="number"
           step="0.05"
           min="0.05"
-          max="10"
+          max="20"
           value={p.spacing}
           onChange={(e) => updateParams(object.id, { spacing: Number(e.target.value) })}
           data-testid="spacing-input"

@@ -625,6 +625,63 @@ file and a re-opened project never disagree. Holes are respected — rows stop a
 a hole and the thread is carried across by a jump — and every stitch stays inside
 the shape box.
 
+### 3.19 Fonts, clipart and specialty stitches
+
+**Fonts.** With a text object selected, the **Font** menu in the Lettering
+panel offers six original cuts:
+
+| Font        | Character                                        |
+| ----------- | ------------------------------------------------ |
+| Studio Sans | The original skeleton; the default for old files |
+| Rounded     | Softened corners and smoother turns              |
+| Block       | Squared corners and a heavier, poster-like hand  |
+| Script      | Slanted, tightly tracked handwriting             |
+| Serif       | Small entry and exit strokes at the ends         |
+| Mono        | Even, fixed-pitch letterforms                    |
+
+Changing the font does not change the text, size or position; it regenerates
+the strokes inside the same object. A file saved before fonts existed has no
+`font` field and keeps the Studio Sans geometry exactly.
+
+**Clipart.** Click **Clipart** in the top bar. Search by name or tag, filter by
+category, choose a shape, set its width and height in millimetres and click
+**Add to design**. The shape is centred in the current hoop and inserted as an
+ordinary complex fill, so it can be node edited, reshaped, welded, recoloured,
+assigned a stitch type or given a machine number like anything else. The
+height/width box preserves the shape's aspect ratio.
+
+**Specialty stitches.** The stitch-type menu includes **Sequins (simulated)**,
+**Beading (simulated)**, **Chenille pile** and **Schiffli lace**. These are
+visual effects made from ordinary needle penetrations: the engine creates a
+sequin grid, bead tacks, a dense pile path or repeating lace motifs, but the
+supported machine files cannot carry device codes for a sequin, bead or
+chenille attachment. The inspector and validation both say so. Treat the output
+as a sewn simulation, not as a native specialty file.
+
+### 3.20 Cap frame, machines and lit preview
+
+**Cap frame.** Choose the cap hoop (the list marks it **cap**), or tick **Wrap
+on a curved cap frame** in the Hoop panel. The canvas switches to a curved crown
+preview with a centre seam. Set the **Crown radius** to the arc the front panel
+follows, not the cap diameter. Leave **Compensate exported stitches for the
+driver** on unless the machine driver already performs its own compensation:
+the engine applies the inverse arc sine to the exported X coordinates so the
+cap sews at the width you drew. A design wider than the crown can wrap is
+refused with `CAP_WRAP_INVALID`; increase the radius or narrow the design.
+Because real caps taper and stretch, check the first one at low speed.
+
+**Production machines.** Every object has a **Production machine** number
+(1–64, default 1). With several objects selected, **Use machine N for all
+selected** applies the visible object's number to the whole selection, and
+**Spread one per machine** numbers them in selection order. **Export machines**
+in the top bar writes one file per machine, named
+`<design>-machine<N>.<ext>`. Each file is validated on its own. This is routing,
+not a live machine queue: an object is never split between machines.
+
+**Lit / 3D preview.** Preferences has **Lit / 3D thread preview**. It adds a
+shadow and highlight pass to satin runs so direction and coverage are easier to
+judge. It is screen-only and changes no stitch or file.
+
 ---
 
 ## 4. Watching it sew — the stitch player
@@ -717,6 +774,38 @@ the file where the format carries them — VP3 in full, TBF and HUS by swatch �
 and DST and EXP carry none at all. See [format-support.md](format-support.md)
 for the details and for the formats that are deliberately not offered rather than
 faked.
+
+### Exporting one file per production machine
+
+Set the **Production machine** number on the objects in the inspector, then
+click **Export machines** next to **Export**. The visible objects are grouped by
+number, and each group is compiled and validated separately. A two-machine
+design downloads `<name>-machine1.dst` and `<name>-machine2.dst`; each is a
+complete, independently readable file containing only that machine's objects.
+The status message names the machines written. If one group fails validation,
+the whole action stops and names the machine, so a bad file cannot slip through
+while the others download.
+
+Machine assignment is not a network queue. The application does not talk to a
+machine, receive status, or rebalance embroidery between heads. It writes the
+files; loading and sequencing them on the machines remains an operator task.
+
+### Artwork and printable placement sheets
+
+Click **Artwork** for customer-facing output built from the same compiled
+stitches:
+
+| Output | Use it for | Notes |
+| ------ | ---------- | ----- |
+| SVG | Vector editing or a client proof | 1 unit = 1 mm, thread paths grouped by colour |
+| PDF | A clean printable proof | A4 or Letter, portrait or landscape, fit or 1:1 |
+| PNG | Email, web or a quick visual | 96–600 DPI, width in millimetres, white background |
+| Printable placement sheet | Hooping and placement on the shop floor | Tiled 1:1, crop marks, optional hoop outline and thread legend |
+
+For the print sheet, choose **1:1 actual size** and set your printer to 100%
+(not "fit to page"). Large designs tile across pages; overlap the crop marks
+and tape the sheets together. A thread legend page lists the colours used, so
+the operator can pull the right spools before starting.
 
 ### Exporting a design too big for one hoop
 
@@ -983,7 +1072,11 @@ feature-by-feature status list. In short: manual digitizing, lettering with
 monograms and text on a path, eighteen fill textures, node editing, transforms,
 grouping, auto-hooping, colour blending, appliqué, multi-hoop splitting with
 overlap and registration crosses, 3D foam, carving stamps, the motif library,
-auto-digitizing, machine-file import, stitch video, version history and
-DST / PES / EXP / JEF / VP3 / TBF / HUS export all work. **What is still
-missing** is art export to SVG / PNG / PDF, licensed thread charts, 3D / lit
-rendering, and customisable key bindings.
+auto-digitizing, machine-file import, stitch video, version history,
+DST / PES / EXP / JEF / VP3 / TBF / HUS export, six original fonts, clipart,
+SVG / PDF / PNG artwork, 1:1 print sheets, cap-frame compensation, machine
+routing, specialty stitch simulations and the lit preview all work. **What is
+still missing** is licensed thread charts, app-level accounts, network machine
+queues, native sequin/bead/chenille device output, and customisable key
+bindings. See [known-limitations.md](known-limitations.md) for the boundary of
+each feature.

@@ -15,7 +15,7 @@ import type {
   StitchType,
   ThreadColor,
 } from '@threadworks/engine';
-import { DEFAULT_LETTERING_SPEC } from '@threadworks/engine';
+import { DEFAULT_CAP_WRAP, DEFAULT_LETTERING_SPEC } from '@threadworks/engine';
 
 export const DEFAULT_SPACING = 0.4;
 export const DST_MAX_STEP_MM = 12.1;
@@ -30,11 +30,26 @@ export function defaultParams(stitchType: StitchType = 'tatami'): StitchParamete
     stitchType === 'motif' ||
     stitchType === 'contour' ||
     stitchType === 'spiral';
+  const specialty = stitchType === 'sequin' || stitchType === 'beading' || stitchType === 'chenille' || stitchType === 'schiffli';
+  const spacing =
+    stitchType === 'sequin'
+      ? 5
+      : stitchType === 'beading'
+        ? 3
+        : stitchType === 'chenille'
+          ? 0.7
+          : stitchType === 'schiffli'
+            ? 1.5
+            : stitchType === 'satin'
+              ? 0.4
+              : fillish
+                ? DEFAULT_SPACING
+                : 3;
 
   return {
     stitchType,
     angle: 0,
-    spacing: stitchType === 'satin' ? 0.4 : fillish ? DEFAULT_SPACING : 3,
+    spacing,
     maxStitchLength: DST_MAX_STEP_MM,
     minStitchLength: 0.3,
     pullCompensation: stitchType === 'satin' ? 0.4 : 0.2,
@@ -46,9 +61,10 @@ export function defaultParams(stitchType: StitchType = 'tatami'): StitchParamete
           : stitchType === 'spiral'
             ? 'spiral'
             : 'tatami',
-    underlay: fillish
-      ? { type: 'edgeRun', spacing: 3, offset: 1, inset: 1 }
-      : { type: 'none', spacing: 3, offset: 1, inset: 1 },
+    underlay:
+      fillish && !specialty
+        ? { type: 'edgeRun', spacing: 3, offset: 1, inset: 1 }
+        : { type: 'none', spacing: 3, offset: 1, inset: 1 },
     tieIn: { enabled: true, length: 0.4, count: 3 },
     tieOff: { enabled: true, length: 0.4, count: 3 },
     // Off by default: a design is flat until someone asks for puff.
@@ -119,6 +135,7 @@ export function createObject(
     locked: false,
     hidden: false,
     groupId: null,
+    machine: 1,
     warnings: [],
   };
 }
@@ -210,6 +227,7 @@ export function createEmptyDesign(options: NewDesignOptions = {}) {
     hoopId: options.hoopId === undefined ? DEFAULT_HOOP.id : options.hoopId,
     objects: [] as EmbroideryObject[],
     threadPalette: STARTER_PALETTE.map((c) => ({ ...c })),
+    capWrap: { ...DEFAULT_CAP_WRAP },
     name: options.name ?? 'Untitled design',
   };
 }
