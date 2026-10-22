@@ -57,6 +57,7 @@ import {
   beanStitch,
   contourFill,
   crossFill,
+  fillStitchLength,
   florentineFill,
   handStitchFill,
   laydownFill,
@@ -67,8 +68,8 @@ import {
   motifRun,
   motifSingle,
   runStitch,
+  satinFromOutline,
   satinFromRails,
-  satinFromStroke,
   shadingFill,
   spiralFill,
   stippleFill,
@@ -358,7 +359,7 @@ function generateTopStitch(obj: EmbroideryObject): RawStitch[] {
 
       // A column digitized as two rails (rings[0] and rings[1]) is stitched
       // rail-to-rail; a single-ring shape is treated as a stroked outline
-      // whose width is the shape's own thickness.
+      // whose width is the column width, NOT the row density.
       if (path.rings.length >= 2 && path.rings[0]!.length >= 2 && path.rings[1]!.length >= 2) {
         return satinFromRails(path.rings[0]!, path.rings[1]!, {
           spacing,
@@ -369,8 +370,10 @@ function generateTopStitch(obj: EmbroideryObject): RawStitch[] {
           splitStrategy: 'divide',
         });
       }
-      const stroke = strokeFromSingleRing(path);
-      return satinFromStroke(stroke, p.spacing, {
+      // A single ring is the OUTLINE of the column the operator drew, not a
+      // centre line: fill it row by row across its own width. Stroking the
+      // ring would sew a hairline along the boundary instead of a column.
+      return satinFromOutline(path, {
         spacing,
         maxStitchLength: p.maxStitchLength,
         pullCompensation,
@@ -457,7 +460,7 @@ function generateMotifStitches(obj: EmbroideryObject): RawStitch[] {
 
   if (mode === 'column') {
     // Two rings are the two rails, exactly as a satin column reads them; a
-    // single ring is a stroke whose width the object's own density sets.
+    // single ring is a centre line whose width the object's own density sets.
     if (path.rings.length >= 2 && path.rings[0]!.length >= 2 && path.rings[1]!.length >= 2) {
       return motifColumn(motif, path.rings[0]!, path.rings[1]!, {
         spacing: grid,
@@ -465,8 +468,9 @@ function generateMotifStitches(obj: EmbroideryObject): RawStitch[] {
         gradient,
       });
     }
-    const stroke = strokeFromSingleRing(path);
-    if (stroke.length < 2) return [];
+    const outer = path.rings[0];
+    if (!outer || outer.length < 2) return [];
+    const stroke = [...outer, { ...outer[0]! }];
     const rails = railsFromStroke(stroke, Math.max(1, p.spacing * 2));
     return motifColumn(motif, rails.left, rails.right, {
       spacing: grid,
@@ -487,11 +491,13 @@ function generateMotifStitches(obj: EmbroideryObject): RawStitch[] {
 function generateFill(obj: EmbroideryObject): RawStitch[] {
   const path = obj.path;
   const p = obj.params;
+  const stitchLength = fillStitchLength(p.stitchLength);
   // The plain tatami settings the textured tatami family builds on: same
   // density, pull and travel rules, different texture on top.
   const common = {
     angle: p.angle,
     spacing: p.spacing,
+    stitchLength,
     pullCompensation: p.pullCompensation,
     jumpThreshold: DEFAULT_CONNECTORS.jumpThreshold,
     serpentine: true,
@@ -505,9 +511,9 @@ function generateFill(obj: EmbroideryObject): RawStitch[] {
       // it was reached through the stitch type or the fill pattern.
       return generateMotifStitches(obj);
     case 'contour':
-      return contourFill(path, { spacing: p.spacing, angle: p.angle });
+      return contourFill(path, { spacing: p.spacing, angle: p.angle, stitchLength });
     case 'spiral':
-      return spiralFill(path, { spacing: p.spacing });
+      return spiralFill(path, { spacing: p.spacing, stitchLength });
     case 'programmedSplit': {
       // A user-defined split replaces the built-in 12 mm / 1.5 mm / half-block
       // numbers without leaving the pattern; absent means the built-in, which
@@ -531,15 +537,15 @@ function generateFill(obj: EmbroideryObject): RawStitch[] {
     case 'warp':
       return tatamiFill(path, { ...common, warp: Math.max(0.5, p.spacing * 2) });
     case 'accordion':
-      return accordionFill(path, { angle: p.angle, spacing: p.spacing });
+      return accordionFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'florentine':
-      return florentineFill(path, { angle: p.angle, spacing: p.spacing });
+      return florentineFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'liquid':
-      return liquidFill(path, { angle: p.angle, spacing: p.spacing });
+      return liquidFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'maze':
-      return mazeFill(path, { angle: p.angle, spacing: p.spacing });
+      return mazeFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'string':
-      return stringFill(path, { angle: p.angle, spacing: p.spacing });
+      return stringFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'laydown':
       return laydownFill(path, {
         angle: p.angle,
@@ -549,11 +555,11 @@ function generateFill(obj: EmbroideryObject): RawStitch[] {
     case 'stipple':
       return stippleFill(path, { spacing: p.spacing });
     case 'cross':
-      return crossFill(path, { angle: p.angle, spacing: p.spacing });
+      return crossFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'shading':
-      return shadingFill(path, { angle: p.angle, spacing: p.spacing });
+      return shadingFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'hand':
-      return handStitchFill(path, { angle: p.angle, spacing: p.spacing });
+      return handStitchFill(path, { angle: p.angle, spacing: p.spacing, stitchLength });
     case 'tatami':
     default:
       return tatamiFill(path, common);
@@ -562,17 +568,6 @@ function generateFill(obj: EmbroideryObject): RawStitch[] {
 
 /** Flatten a compound path into one open polyline (outer boundary). */
 function outlinePoints(path: CompoundPath): Point[] {
-  const outer = path.rings[0];
-  if (!outer || outer.length < 2) return [];
-  return [...outer, { ...outer[0]! }];
-}
-
-/**
- * Approximate a center stroke for a single-ring satin shape by walking the
- * boundary. Used when the user picked satin but drew one closed ring rather
- * than an explicit pair of rails.
- */
-function strokeFromSingleRing(path: CompoundPath): Point[] {
   const outer = path.rings[0];
   if (!outer || outer.length < 2) return [];
   return [...outer, { ...outer[0]! }];

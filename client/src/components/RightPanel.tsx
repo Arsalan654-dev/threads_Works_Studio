@@ -22,7 +22,7 @@ import { DEFAULT_APPLIQUE, appliqueProblem } from '@threadworks/engine';
 import { FONT_LIBRARY, capWrapProblem, isSpecialtyStitch } from '@threadworks/engine';
 import { useDesignStore } from '../store/designStore.js';
 import { referenceStore, type HoopEntry } from '../store/referenceStore.js';
-import { defaultParams, nextObjectId } from '../model/defaults.js';
+import { DEFAULT_STITCH_LENGTH, defaultParams, nextObjectId } from '../model/defaults.js';
 import { STITCH_TYPES } from '../model/stitchTypes.js';
 import { MotifPicker } from './MotifPicker.js';
 
@@ -1553,6 +1553,25 @@ function ObjectSection({
         />
         <small>Lower = denser. 0.3-0.6 mm suits most fills.</small>
       </label>
+
+      {(p.stitchType === 'tatami' || p.stitchType === 'contour' || p.stitchType === 'spiral') && (
+        <label className="field">
+          <span>Stitch length (mm)</span>
+          <input
+            type="number"
+            step="0.25"
+            min="0.5"
+            max="8"
+            value={p.stitchLength ?? DEFAULT_STITCH_LENGTH}
+            onChange={(e) => updateParams(object.id, { stitchLength: Number(e.target.value) })}
+            data-testid="stitch-length-input"
+          />
+          <small>
+            How far the needle travels inside a row. Density is the distance between rows; 3 mm
+            is a standard fill stitch.
+          </small>
+        </label>
+      )}
 
       <label className="field">
         <span>Angle (deg)</span>

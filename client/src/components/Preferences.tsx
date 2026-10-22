@@ -302,7 +302,7 @@ export function Preferences({ onClose }: { onClose: () => void }): React.ReactEl
           <label className="field checkbox">
             <input
               type="checkbox"
-              checked={settings.preview3d ?? false}
+              checked={settings.preview3d ?? true}
               onChange={(e) => update({ preview3d: e.target.checked })}
               data-testid="pref-preview-3d"
             />

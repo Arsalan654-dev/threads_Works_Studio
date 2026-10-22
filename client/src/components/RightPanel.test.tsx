@@ -514,3 +514,28 @@ describe('original font picker', () => {
     expect(useDesignStore.getState().design.objects[0]!.lettering?.font).toBe('script');
   });
 });
+
+describe('fill stitch length', () => {
+  it('writes the step along a row without touching the row pitch', () => {
+    const object = createObject('fill', [rectangleRing(10, 10, 40, 30)]);
+    useDesignStore.getState().addObject(object);
+    render(<RightPanel />);
+
+    const field = screen.getByTestId('stitch-length-input') as HTMLInputElement;
+    expect(field.value).toBe('3');
+    fireEvent.change(field, { target: { value: '4.5' } });
+
+    const params = useDesignStore.getState().design.objects[0]!.params;
+    expect(params.stitchLength).toBe(4.5);
+    // Spacing is the distance between rows and must stay independent.
+    expect(params.spacing).toBe(0.4);
+  });
+
+  it('is absent for satin, whose density already is the stitch spacing', () => {
+    const column = createObject('column', [rectangleRing(10, 10, 40, 10)]);
+    useDesignStore.getState().addObject(column);
+    render(<RightPanel />);
+
+    expect(screen.queryByTestId('stitch-length-input')).toBeNull();
+  });
+});

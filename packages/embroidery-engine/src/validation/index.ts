@@ -122,20 +122,34 @@ export function validateSequence(
   }
 
   // --- travel -------------------------------------------------------------
+  // Thread is attached to the fabric after a stitch or a lock and cut loose
+  // by a trim or a colour change. A jump taken while the needle is already
+  // up after a cut drags nothing, so it is the total distance covered while
+  // thread is still attached that matters - not the length of one jump
+  // command. That also means a long travel split into short jumps is caught.
   let longTravel = 0;
-  for (let i = 1; i < stitches.length; i++) {
-    const a = stitches[i - 1]!;
-    const b = stitches[i]!;
-    if (b.command !== 'jump') continue;
-    const d = Math.hypot(b.x - a.x, b.y - a.y);
-    if (d > LIMITS.maxTravelBeforeTrim) longTravel++;
+  let attached = false;
+  let travel = 0;
+  for (let i = 0; i < stitches.length; i++) {
+    const s = stitches[i]!;
+    if (s.command === 'jump') {
+      if (attached) {
+        const a = stitches[i - 1] ?? s;
+        travel += Math.hypot(s.x - a.x, s.y - a.y);
+      }
+      continue;
+    }
+    if (attached && travel > LIMITS.maxTravelBeforeTrim) longTravel++;
+    travel = 0;
+    attached = s.command === 'stitch' || s.command === 'lock';
   }
+  if (attached && travel > LIMITS.maxTravelBeforeTrim) longTravel++;
   if (longTravel > 0) {
     issues.push(
       issue(
         'warning',
         'LONG_TRAVEL',
-        `${longTravel} jump(s) exceed ${LIMITS.maxTravelBeforeTrim} mm. Long untrimmed travel can drag loose thread across the design.`,
+        `${longTravel} travel(s) exceed ${LIMITS.maxTravelBeforeTrim} mm without a trim. Long untrimmed travel can drag loose thread across the design.`,
         null,
       ),
     );

@@ -46,7 +46,7 @@ export function StatusBar(): React.ReactElement {
       </span>
       {stats && (
         <>
-          <span className="status-item" title="Needle penetrations only">
+          <span className="status-item" title="Needle penetrations only" data-testid="sew-count">
             {stats.sewStitches.toLocaleString()} sewn
           </span>
           <span className="status-item" title="Jumps and trims between objects">
@@ -88,8 +88,16 @@ export function StatusBar(): React.ReactElement {
         </span>
       )}
       {warnings.length > 0 && (
-        <span className="status-issue warning" data-testid="validation-warnings">
-          {warnings.length} warning{warnings.length === 1 ? '' : 's'}
+        <span
+          className="status-issue warning"
+          data-testid="validation-warnings"
+          // A bare count tells the operator something is wrong but not what:
+          // the message itself has to reach the screen, and the full list is
+          // one hover away when several warnings stack up.
+          title={warnings.map((w) => w.message).join('\n')}
+        >
+          {warnings.length} warning{warnings.length === 1 ? '' : 's'}:{' '}
+          {warnings[0]!.message}
         </span>
       )}
       {!compileFailed &&

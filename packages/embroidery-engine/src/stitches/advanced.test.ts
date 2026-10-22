@@ -187,12 +187,17 @@ describe('advanced fills, shared promises', () => {
 describe('accordion', () => {
   it('zigzags: consecutive penetrations alternate above and below the row', () => {
     const sts = accordionFill(RECT, OPTS);
+    // The pattern walks along a row in stitch-length steps and flips to the
+    // other side of the row on every step, so the move is mostly forward with
+    // a large sideways component.
     let found = false;
     for (let i = 1; i < sts.length; i++) {
       const a = sts[i - 1]!;
       const b = sts[i]!;
       if (b.command !== 'stitch') continue;
-      if (Math.abs(b.x - a.x) < 1.4 && Math.abs(b.y - a.y) > 0.6) found = true;
+      const dx = Math.abs(b.x - a.x);
+      const dy = Math.abs(b.y - a.y);
+      if (dx > 0.5 && dx < 4 && dy > 1) found = true;
     }
     expect(found).toBe(true);
   });

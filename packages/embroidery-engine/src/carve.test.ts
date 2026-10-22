@@ -106,7 +106,10 @@ describe('carveFill', () => {
     const object = fillObject(undefined);
     const base = generateObjectStitches(object);
 
-    const carved = carveFill(base, object.path, ON);
+    // Compare against a carve with its outline off: the outline is new thread
+    // around each stamp, so including it would measure added stitches rather
+    // than removed ones.
+    const carved = carveFill(base, object.path, { ...ON, outline: false });
     // Every stamp is placed on a grid inside this square, so some fill must
     // be removed for the carve to have done anything.
     expect(sewn(carved)).toBeLessThan(sewn(base));
@@ -170,7 +173,9 @@ describe('carveFill', () => {
 describe('generateObjectStitches with carve', () => {
   it('produces a different fill than the plain one', () => {
     const plain = generateObjectStitches(fillObject(undefined));
-    const carved = generateObjectStitches(fillObject(ON));
+    // Outline off, so this compares the carved fill itself. The outline adds
+    // its own stitches and is covered by its own test below.
+    const carved = generateObjectStitches(fillObject({ ...ON, outline: false }));
 
     expect(sewn(carved)).not.toBe(sewn(plain));
     expect(sewn(carved)).toBeLessThan(sewn(plain));

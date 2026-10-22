@@ -121,27 +121,64 @@ export function buildSequence(
     const entry = group.entry ?? group.stitches[0]!;
     const exit = group.exit ?? group.stitches[group.stitches.length - 1]!;
 
+    // Lock where the thread will actually start sewing. An entry marker can
+    // sit on the far side of a long shape (it is chosen to shorten the travel
+    // from the previous object), but the underlay and the fill still start at
+    // the path's own first point. Tying in at the marker would leave a lock
+    // in bare fabric and then drag the thread to the real start.
+    const firstBody = group.stitches[0]!;
+    const entryGap = Math.hypot(entry.x - firstBody.x, entry.y - firstBody.y);
+    const tieEntry = entryGap > opts.connectors.trimThreshold ? firstBody : entry;
+
     // --- connector from the previous object ------------------------------
     if (cursor) {
-      const gap = Math.hypot(entry.x - cursor.x, entry.y - cursor.y);
+      const gap = Math.hypot(tieEntry.x - cursor.x, tieEntry.y - cursor.y);
       if (gap > opts.connectors.trimThreshold) {
-        push(entry.x, entry.y, 'trim', group.colorIndex, null);
-        push(entry.x, entry.y, 'jump', group.colorIndex, group.objectId);
+        // Cut where the thread is, then move with the needle up: a trim at
+        // the destination would happen after the thread was dragged there.
+        // A fresh colour has no thread attached yet, so it only needs the
+        // move.
+        if (!isNewColor) push(cursor.x, cursor.y, 'trim', currentColor, null);
+        push(tieEntry.x, tieEntry.y, 'jump', group.colorIndex, group.objectId);
       } else if (gap > opts.connectors.jumpThreshold) {
-        push(entry.x, entry.y, 'jump', group.colorIndex, group.objectId);
+        push(tieEntry.x, tieEntry.y, 'jump', group.colorIndex, group.objectId);
       }
       // Otherwise the first real stitch covers the move on its own.
     }
 
     // --- tie-in ----------------------------------------------------------
     if (group.lockStart) {
-      const locks = tieIn(entry, { length: group.lockLength, count: group.lockCount });
+      const locks = tieIn(tieEntry, { length: group.lockLength, count: group.lockCount });
       for (const l of locks) push(l.x, l.y, l.command, group.colorIndex, group.objectId);
     }
 
     // --- body ------------------------------------------------------------
+    // A generator can jump a long way inside one object - the edge-run
+    // underlay of a long bar starts at its far end, for example. That travel
+    // needs a trim too, and the cut has to happen where the thread is, before
+    // the first jump of the run. The whole run is measured up front because a
+    // travel can be split into several short jump commands.
     let previous: RawStitch | null = null;
-    for (const raw of group.stitches) {
+    for (let i = 0; i < group.stitches.length; i++) {
+      const raw = group.stitches[i]!;
+
+      if (raw.command === 'jump' && previous) {
+        const attached = previous.command === 'stitch' || previous.command === 'lock';
+        if (attached) {
+          let travel = 0;
+          let from: RawStitch = previous;
+          for (let j = i; j < group.stitches.length; j++) {
+            const hop = group.stitches[j]!;
+            if (hop.command !== 'jump') break;
+            travel += Math.hypot(hop.x - from.x, hop.y - from.y);
+            from = hop;
+          }
+          if (travel > opts.connectors.trimThreshold) {
+            push(previous.x, previous.y, 'trim', group.colorIndex, null);
+          }
+        }
+      }
+
       if (previous && raw.command === 'stitch') {
         const d = Math.hypot(raw.x - previous.x, raw.y - previous.y);
         if (d > opts.connectors.jumpThreshold && d < 0.001) continue;
@@ -151,9 +188,24 @@ export function buildSequence(
     }
 
     // --- tie-off ---------------------------------------------------------
+    // Lock where the thread actually is. The exit marker is where travel for
+    // the next object starts, not necessarily where this object's last stitch
+    // landed: a carved fill ends on its last stamp, a diagonal fill on a row
+    // end. Tying off at the marker would first drag the thread across the
+    // design and then make a lock that is not attached to a sewn run.
+    const lastBody = group.stitches[group.stitches.length - 1]!;
+    const exitGap = Math.hypot(exit.x - lastBody.x, exit.y - lastBody.y);
+    const tieAt = exitGap > opts.connectors.trimThreshold ? lastBody : exit;
     if (group.lockEnd) {
-      const locks = tieOff(exit, { length: group.lockLength, count: group.lockCount });
+      const locks = tieOff(tieAt, { length: group.lockLength, count: group.lockCount });
       for (const l of locks) push(l.x, l.y, l.command, group.colorIndex, group.objectId);
+    }
+
+    // A long move from the lock to the declared exit is travel, not a stitch:
+    // cut the thread first so nothing is dragged across the design.
+    if (exitGap > opts.connectors.trimThreshold) {
+      push(tieAt.x, tieAt.y, 'trim', group.colorIndex, null);
+      push(exit.x, exit.y, 'jump', group.colorIndex, group.objectId);
     }
 
     cursor = { x: exit.x, y: exit.y };

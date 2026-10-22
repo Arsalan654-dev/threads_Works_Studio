@@ -372,6 +372,15 @@ export interface StitchParameters {
   angle: number;
   /** Distance between stitch penetrations in mm. Lower = denser. */
   spacing: number;
+  /**
+   * Distance between penetrations along a fill row, in mm.
+   *
+   * `spacing` is the row pitch; this is how long each stitch in a row is.
+   * Optional: absent means 3 mm, the historical fill default. Satin, run and
+   * the photo mosaic do not read it - their own `spacing` already means the
+   * distance along the stitch path.
+   */
+  stitchLength?: number;
   /** Maximum allowed single stitch length in mm (DST limit ~12.1). */
   maxStitchLength: number;
   /** Minimum useful stitch length in mm - shorter is flagged. */

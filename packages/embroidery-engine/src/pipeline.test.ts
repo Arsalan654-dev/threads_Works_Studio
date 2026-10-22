@@ -391,6 +391,69 @@ describe('underlay to top-layer travel', () => {
   });
 });
 
+describe('long travel is cut, not dragged', () => {
+  it('trims before a long jump inside one object', () => {
+    // One fill object made of two islands 80 mm apart: its rows have to jump
+    // between them, and that jump is a real travel, not a stitch.
+    const twin = squareObject({
+      path: {
+        rings: [
+          [
+            { x: 0, y: 0 },
+            { x: 20, y: 0 },
+            { x: 20, y: 20 },
+            { x: 0, y: 20 },
+          ],
+          [
+            { x: 100, y: 0 },
+            { x: 120, y: 0 },
+            { x: 120, y: 20 },
+            { x: 100, y: 20 },
+          ],
+        ],
+      },
+    });
+    const { sequence, validation } = compileDesign([translateObject(twin, 20, 40)], PALETTE, HOOP);
+
+    let longJumps = 0;
+    let cutJumps = 0;
+    for (let i = 1; i < sequence.stitches.length; i++) {
+      const s = sequence.stitches[i]!;
+      if (s.command !== 'jump') continue;
+      const a = sequence.stitches[i - 1]!;
+      if (Math.hypot(s.x - a.x, s.y - a.y) <= 60) continue;
+      longJumps++;
+      // The cut sits at the thread's position, immediately before the move.
+      if (a.command === 'trim') cutJumps++;
+    }
+    expect(longJumps).toBeGreaterThan(0);
+    expect(cutJumps).toBe(longJumps);
+    expect(validation.issues.filter((i) => i.code === 'LONG_TRAVEL')).toEqual([]);
+  });
+
+  it('ties in at the body start when the entry marker is far away', () => {
+    const bar = squareObject({
+      path: {
+        rings: [
+          [
+            { x: 0, y: 0 },
+            { x: 80, y: 0 },
+            { x: 80, y: 10 },
+            { x: 0, y: 10 },
+          ],
+        ],
+      },
+      entryExit: { entry: { x: 80, y: 0 }, exit: null },
+    });
+    const { sequence } = compileDesign([translateObject(bar, 20, 40)], PALETTE, HOOP);
+    const firstLock = sequence.stitches.find((s) => s.command === 'lock');
+    expect(firstLock).toBeDefined();
+    // The underlay starts at the left end (20,40). Locking at the explicit
+    // entry (100,40) would tie off in bare fabric 80 mm from any stitch.
+    expect(firstLock!.x).toBeLessThan(35);
+  });
+});
+
 describe('design helpers', () => {
   it('computes object bounds from source geometry', () => {
     const b = boundsOfObjects([squareObject()]);
@@ -511,8 +574,14 @@ describe('minStitchLength', () => {
   });
 
   it('actually removes stitches when the floor is raised', () => {
-    const off = squareObject({ params: { ...DEFAULT_PARAMS, minStitchLength: 0 } });
-    const on = squareObject({ params: { ...DEFAULT_PARAMS, minStitchLength: 1.0 } });
+    // A deliberately short fill stitch so there are sub-millimetre gaps for
+    // the floor to act on; a default 3 mm fill has none.
+    const off = squareObject({
+      params: { ...DEFAULT_PARAMS, stitchLength: 0.5, minStitchLength: 0 },
+    });
+    const on = squareObject({
+      params: { ...DEFAULT_PARAMS, stitchLength: 0.5, minStitchLength: 1.0 },
+    });
 
     const before = generateObjectStitches(off).filter((s) => s.command === 'stitch').length;
     const after = generateObjectStitches(on).filter((s) => s.command === 'stitch').length;
@@ -605,10 +674,13 @@ describe('minStitchLength', () => {
   });
 
   it('reaches the compiled design, not just the raw generator', () => {
-    const off = squareObject({ id: 'a', params: { ...DEFAULT_PARAMS, minStitchLength: 0 } });
+    const off = squareObject({
+      id: 'a',
+      params: { ...DEFAULT_PARAMS, stitchLength: 0.5, minStitchLength: 0 },
+    });
     const on = squareObject({
       id: 'a',
-      params: { ...DEFAULT_PARAMS, minStitchLength: 1.0 },
+      params: { ...DEFAULT_PARAMS, stitchLength: 0.5, minStitchLength: 1.0 },
     });
 
     const a = compileDesign([off], PALETTE, HOOP).sequence.stitches;

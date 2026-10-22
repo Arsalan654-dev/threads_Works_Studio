@@ -239,6 +239,119 @@ export function satinFromStroke(
   return satinFromRails(left, right, options);
 }
 
+/** Angle of a ring's long axis, in radians, from its boundary points. */
+function principalAxis(ring: Point[]): { angle: number; cx: number; cy: number } {
+  let n = 0;
+  let sx = 0;
+  let sy = 0;
+  for (const p of ring) {
+    n++;
+    sx += p.x;
+    sy += p.y;
+  }
+  if (n < 3) return { angle: 0, cx: sx / Math.max(1, n), cy: sy / Math.max(1, n) };
+  const cx = sx / n;
+  const cy = sy / n;
+  let cxx = 0;
+  let cyy = 0;
+  let cxy = 0;
+  for (const p of ring) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    cxx += dx * dx;
+    cyy += dy * dy;
+    cxy += dx * dy;
+  }
+  if (Math.abs(cxx) < 1e-9 && Math.abs(cyy) < 1e-9 && Math.abs(cxy) < 1e-9) {
+    return { angle: 0, cx, cy };
+  }
+  return { angle: 0.5 * Math.atan2(2 * cxy, cxx - cyy), cx, cy };
+}
+
+/**
+ * Sew a single closed outline as a satin column.
+ *
+ * The column tool collects one closed ring around the area to be satin-filled
+ * (Wilcom's Input A outlines a column the same way). Treating that ring as a
+ * spine and stroking it would sew a hairline around the shape; the ring is the
+ * COLUMN BOUNDARY, not its centre line.
+ *
+ * The ring is rotated onto its long axis and every scanline across the column
+ * becomes one satin row: stitches run rail to rail and rows advance by
+ * `spacing` along the length. Alternating row direction keeps consecutive rows
+ * connected at the same edge, and each scanline span is sewn on its own, so
+ * curved, S-shaped and multi-arm columns all fill without crossing themselves.
+ * Pull compensation widens every row outward along the stitch direction.
+ */
+export function satinFromOutline(
+  path: CompoundPath,
+  options: SatinOptions,
+): RawStitch[] {
+  const outer = path.rings[0];
+  if (!outer || outer.length < 3) return [];
+  const spacing = Math.max(0.1, options.spacing);
+  const pullLeft = Math.max(0, options.pullCompensationLeft ?? options.pullCompensation);
+  const pullRight = Math.max(0, options.pullCompensationRight ?? options.pullCompensation);
+
+  const axis = principalAxis(outer);
+  const centre = { x: axis.cx, y: axis.cy };
+  // Rotate the long axis to vertical, so horizontal scanlines run ACROSS the
+  // column and stepping down the page advances along its length.
+  const rotated = rotatePath(path, -axis.angle - Math.PI / 2, centre);
+  const box = boundsOf(rotated.rings);
+  if (box.maxY - box.minY <= EPS || box.maxX - box.minX <= EPS) return [];
+
+  const out: RawStitch[] = [];
+  // Rows inset by half a row so the outline itself is not over-sewn.
+  let reverse = false;
+  const rowCount = Math.max(1, Math.round((box.maxY - box.minY) / spacing));
+  const pitch = (box.maxY - box.minY) / rowCount;
+
+  for (let r = 0; r <= rowCount; r++) {
+    const y = box.minY + r * pitch;
+    const spans = scanlineSpans(rotated.rings, y);
+    if (spans.length === 0) continue;
+    const ordered = reverse ? spans.slice().reverse() : spans;
+
+    for (const [a, b] of ordered) {
+      let x1 = a - pullLeft;
+      let x2 = b + pullRight;
+      if (x2 - x1 <= 0.2) continue;
+      if (x1 > x2) [x1, x2] = [x2, x1];
+
+      const parts = Math.max(1, Math.ceil((x2 - x1) / Math.max(0.5, options.maxStitchLength)));
+      const from = reverse ? x2 : x1;
+      const to = reverse ? x1 : x2;
+
+      // The first point of a span is a stitch when it continues the row (the
+      // short hop along the rail between rows); it is travel - a jump - when
+      // the span starts somewhere else entirely, such as another arm of a
+      // U-shaped column.
+      const start: RawStitch = { x: from, y, command: SEW };
+      const prev = out[out.length - 1];
+      if (prev && Math.hypot(start.x - prev.x, start.y - prev.y) > 4) {
+        start.command = JUMP;
+      }
+      out.push(start);
+      for (let k = 1; k <= parts; k++) {
+        const u = k / parts;
+        out.push({ x: from + (to - from) * u, y, command: SEW });
+      }
+      reverse = !reverse;
+    }
+  }
+
+  // Rotate back into design space.
+  const back = axis.angle + Math.PI / 2;
+  for (const st of out) {
+    const p = rotatePoint({ x: st.x, y: st.y }, back, centre.x, centre.y);
+    st.x = p.x;
+    st.y = p.y;
+  }
+
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Tatami fill
 // ---------------------------------------------------------------------------
@@ -248,13 +361,26 @@ export interface TatamiOptions {
   angle: number;
   /** Row pitch in mm - smaller means denser. */
   spacing: number;
+  /**
+   * Distance between penetrations ALONG each row, in mm.
+   *
+   * `spacing` is the row pitch across the fill; this is how long a single
+   * stitch is. A real tatami is 0.35-0.5 mm between rows but 2-4 mm between
+   * penetrations inside a row - using the row pitch as the along-row step too
+   * would make every fill a solid mass of 0.4 mm stitches (and multiply the
+   * stitch count of a machine file several times over).
+   *
+   * Optional: absent means {@link DEFAULT_TATAMI.stitchLength} (3 mm), which
+   * is what a fill should sew when nobody has chosen otherwise.
+   */
+  stitchLength?: number;
   /** Outward extension applied to each row end in mm. */
   pullCompensation: number;
   /** Gaps wider than this become jump commands instead of travel stitches. */
   jumpThreshold: number;
   /** Alternating row direction, which minimises travel distance. */
   serpentine: boolean;
-  /** Half-pitch offset on alternate rows: the woven / brick appearance. */
+  /** Half-stitch offset on alternate rows: the woven / brick appearance. */
   offsetPattern: boolean;
   /** Pull rows in from the extreme edge so the outline stays clean. */
   edgeInset: number;
@@ -293,6 +419,7 @@ export interface TatamiOptions {
 export const DEFAULT_TATAMI: TatamiOptions = {
   angle: 45,
   spacing: 0.45,
+  stitchLength: 3,
   pullCompensation: 0,
   jumpThreshold: 4,
   serpentine: true,
@@ -301,15 +428,32 @@ export const DEFAULT_TATAMI: TatamiOptions = {
 };
 
 /**
+ * Along-path penetration step for a fill, in mm.
+ *
+ * Clamped to a range a machine can actually sew: below ~0.5 mm the needle
+ * punches the same hole repeatedly and shreds the thread, above 8 mm a fill
+ * stitch starts to look like a run. Shared by tatami and the textured fills so
+ * "stitch length" means one thing everywhere.
+ */
+export function fillStitchLength(value: number | undefined): number {
+  const requested = value ?? DEFAULT_TATAMI.stitchLength ?? 3;
+  if (!Number.isFinite(requested)) return 3;
+  return Math.max(0.5, Math.min(8, requested));
+}
+
+/**
  * Generate tatami (weave / step) fill inside a compound shape.
  *
  * The shape is rotated so fill rows become horizontal, intersected with
  * horizontal scanlines, then rotated back. Holes are respected through the
- * even-odd scanline rule.
+ * even-odd scanline rule. Rows sit `spacing` mm apart; inside a row the needle
+ * steps every `stitchLength` mm, which is what keeps the fill from collapsing
+ * into a solid sheet of sub-millimetre stitches.
  */
 export function tatamiFill(path: CompoundPath, options: Partial<TatamiOptions> = {}): RawStitch[] {
   const opts = { ...DEFAULT_TATAMI, ...options };
   const spacing = Math.max(0.05, opts.spacing);
+  const stitchLength = fillStitchLength(opts.stitchLength);
   const inset = Math.max(0, opts.edgeInset);
 
   if (path.rings.length === 0 || path.rings.some((r) => r.length < 3)) return [];
@@ -333,47 +477,67 @@ export function tatamiFill(path: CompoundPath, options: Partial<TatamiOptions> =
   const rowEnd = box.maxY - inset;
 
   /**
-   * Decide which of a row's stitch positions fall inside a programmed gap.
+   * Sew one row as programmed blocks.
    *
-   * Returns, for each position, whether to sew it - and for the first position
-   * after a gap, that the move into it must be a JUMP. Sewing across a gap
-   * would simply draw a thread through it and the split would not exist, so
-   * the travel has to be an explicit needle-up move.
+   * The gaps belong to the row's plan, not to the sampled stitch positions:
+   * the row stops at a gap edge and starts again after it. Filtering a row's
+   * penetrations instead would make the split depend on whether a stitch
+   * happened to land inside a 1-2 mm gap, so a fill with a normal 3 mm stitch
+   * length would silently sew as plain tatami - exactly the "the setting does
+   * nothing" bug this pattern is meant to avoid.
    */
-  const planSplit = (xs: number[], row: number): { keep: boolean; jump: boolean }[] => {
+  const pushSplitRow = (
+    x1: number,
+    x2: number,
+    reverse: boolean,
+    row: number,
+    pushPoint: (x: number, command: StitchCommand) => void,
+  ): void => {
     const split = opts.split!;
+    const width = x2 - x1;
     // Adaptive blocks measure the row itself, so a wide span breaks rarely
     // and a narrow neck breaks often - the split follows the shape.
-    const width = Math.abs(xs[xs.length - 1]! - xs[0]!);
-    const segmentLength = opts.adaptiveSplit
+    const segment = opts.adaptiveSplit
       ? Math.min(14, Math.max(3, width * 0.7))
-      : split.segmentLength;
-    const span = segmentLength + split.gap;
+      : Math.max(0.5, split.segmentLength);
+    const gap = Math.max(0.2, split.gap);
+    const span = segment + gap;
     // Alternate rows start part of a block later, so the breaks stagger into
     // a brick grid instead of ruling one line straight across the shape; a
     // user-defined split can set that fraction (0 = one straight break line).
     const stagger = split.stagger ?? 0.5;
-    const offset = (row % 2) * (segmentLength * stagger);
-    // Measure from the row's left edge, NOT from `xs[0]`: a serpentine row
-    // walks right-to-left, so `xs[0]` is the larger coordinate and every
-    // `x - first` would be negative. JavaScript's % keeps the sign of its
-    // left operand, so a negative value would fall outside `0 <= t < gap` and
-    // that row would silently come out unsplit.
-    const origin = Math.min(xs[0]!, xs[xs.length - 1]!);
-    let gapOpen = false;
+    const firstGap = ((-(row % 2) * segment * stagger) % span + span) % span;
 
-    return xs.map((x, i) => {
-      // Row ends are never eaten: the outline has to still close.
-      if (i === 0 || i === xs.length - 1) {
-        gapOpen = false;
-        return { keep: true, jump: false };
+    // Sewn intervals in row-local coordinates.
+    const blocks: [number, number][] = [];
+    let cursor = 0;
+    // The row's own ends are never eaten: an outline must still close. A gap
+    // opening at the edge moves one span inward, and a gap that would leave
+    // less than a stitch of row after it is skipped so the row can finish.
+    let gapStart = firstGap < 0.5 ? firstGap + span : firstGap;
+    while (cursor < width - 1e-9) {
+      const gapEnd = gapStart + gap;
+      if (gapStart >= width - 0.5 || gapEnd >= width - 0.5) break;
+      if (gapStart > cursor + 1e-9) blocks.push([cursor, gapStart]);
+      cursor = gapEnd;
+      gapStart += span;
+    }
+    if (width - cursor > 0.25) blocks.push([cursor, width]);
+
+    // Blocks are sewn in row order so the needle only ever lifts across the
+    // short gap between two blocks, never back across a whole segment.
+    const ordered = reverse ? blocks.slice().reverse() : blocks;
+    for (let i = 0; i < ordered.length; i++) {
+      const [a, b] = ordered[i]!;
+      const from = x1 + (reverse ? b : a);
+      const to = x1 + (reverse ? a : b);
+      const length = Math.abs(to - from);
+      const parts = Math.max(1, Math.ceil(length / stitchLength - 1e-9));
+      const dir = to >= from ? 1 : -1;
+      for (let k = 0; k <= parts; k++) {
+        pushPoint(from + dir * (length / parts) * k, k === 0 && i > 0 ? JUMP : SEW);
       }
-      const t = (((x - origin + offset) % span) + span) % span;
-      const inGap = t >= 0 && t < split.gap;
-      const jump = inGap === false && gapOpen;
-      gapOpen = inGap;
-      return { keep: !inGap, jump };
-    });
+    }
   };
 
   const pushRow = (y: number, phase: number, reverse: boolean, row: number): void => {
@@ -389,7 +553,10 @@ export function tatamiFill(path: CompoundPath, options: Partial<TatamiOptions> =
         x1 -= rand() * jag;
         x2 += rand() * jag;
       }
-      if (x2 - x1 < EPS) continue;
+      // A sliver narrower than a thread cannot be seen, and sewing both of
+      // its ends puts two penetrations in one hole. It appears where a row
+      // just grazes a rounded corner or a hole, so drop the whole span.
+      if (x2 - x1 < 0.2) continue;
 
       // A warped row bows sideways: the displacement peaks at the row's
       // middle and returns to zero at both ends, so neighbouring rows still
@@ -400,36 +567,49 @@ export function tatamiFill(path: CompoundPath, options: Partial<TatamiOptions> =
       };
 
       const xs: number[] = [];
+      if (opts.split && x2 - x1 > 0.5) {
+        // Programmed blocks replace the plain row: the row is broken at the
+        // planned gap edges rather than filtered afterwards.
+        pushSplitRow(x1, x2, reverse, row, pushPoint);
+        continue;
+      }
+
       if (!reverse) {
-        // Walk left -> right.
+        // Walk left -> right. Penetrations land every `stitchLength` mm; the
+        // half-stitch phase on alternate rows is what makes the brick weave.
         let first = x1 + phase;
-        if (first < x1 + spacing * 0.25) first += spacing;
+        if (first < x1 + stitchLength * 0.25) first += stitchLength;
         if (first > x2) first = x2;
         xs.push(first);
-        for (let x = first + spacing; x < x2 - 1e-9; x += spacing) xs.push(x);
-        if (xs[xs.length - 1]! < x2 - 1e-9) xs.push(x2);
-        else xs[xs.length - 1] = x2;
+        for (let x = first + stitchLength; x < x2 - 1e-9; x += stitchLength) xs.push(x);
+        // A remainder shorter than a thread is not a stitch: snap the last
+        // penetration to the exact row end instead of putting two holes in
+        // the same spot.
+        const last = xs[xs.length - 1]!;
+        if (last < x2 - 1e-9) {
+          if (x2 - last < 0.2) xs[xs.length - 1] = x2;
+          else xs.push(x2);
+        } else {
+          xs[xs.length - 1] = x2;
+        }
       } else {
         // Walk right -> left.
         let first = x2 - phase;
-        if (first > x2 - spacing * 0.25) first -= spacing;
+        if (first > x2 - stitchLength * 0.25) first -= stitchLength;
         if (first < x1) first = x1;
         xs.push(first);
-        for (let x = first - spacing; x > x1 + 1e-9; x -= spacing) xs.push(x);
-        if (xs[xs.length - 1]! > x1 + 1e-9) xs.push(x1);
-        else xs[xs.length - 1] = x1;
+        for (let x = first - stitchLength; x > x1 + 1e-9; x -= stitchLength) xs.push(x);
+        const last = xs[xs.length - 1]!;
+        if (last > x1 + 1e-9) {
+          if (last - x1 < 0.2) xs[xs.length - 1] = x1;
+          else xs.push(x1);
+        } else {
+          xs[xs.length - 1] = x1;
+        }
       }
 
-      if (opts.split && xs.length > 2) {
-        const plan = planSplit(xs, row);
-        for (let i = 0; i < xs.length; i++) {
-          const step = plan[i]!;
-          if (!step.keep) continue;
-          pushPoint(xs[i]!, step.jump ? JUMP : SEW);
-        }
-      } else {
-        for (const x of xs) pushPoint(x, SEW);
-      }
+      if (xs.length === 0) continue;
+      for (const x of xs) pushPoint(x, SEW);
     }
   };
 
@@ -441,7 +621,9 @@ export function tatamiFill(path: CompoundPath, options: Partial<TatamiOptions> =
     const pitch = (rowEnd - rowStart) / rowCount;
     for (let r = 0; r <= rowCount; r++) {
       const y = rowStart + r * pitch;
-      const phase = opts.offsetPattern ? (r % 2) * (pitch / 2) : 0;
+      // Alternate rows start half a stitch later, so penetrations stagger into
+      // a brick weave instead of lining up into visible columns of holes.
+      const phase = opts.offsetPattern ? (r % 2) * (stitchLength / 2) : 0;
       const reverse = opts.serpentine && r % 2 === 1;
       pushRow(y, phase, reverse, r);
     }
@@ -895,9 +1077,10 @@ function pointInRotated(path: CompoundPath, pt: Point): boolean {
  */
 export function contourFill(
   path: CompoundPath,
-  options: { spacing: number; angle?: number; maxIterations?: number },
+  options: { spacing: number; angle?: number; maxIterations?: number; stitchLength?: number },
 ): RawStitch[] {
   const spacing = Math.max(0.2, options.spacing);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const out: RawStitch[] = [];
   const outer = path.rings[0];
   if (!outer || outer.length < 3) return out;
@@ -915,7 +1098,9 @@ export function contourFill(
     if (current.length < 3) break;
 
     const closed = [...current, current[0]!];
-    const sampled = resample(closed, Math.max(0.5, spacing));
+    // Penetrations march along the contour every stitch length, not every row
+    // pitch: the row pitch is how far the next ring sits inward.
+    const sampled = resample(closed, stitchLength);
 
     // Alternate direction so rings link up with a short travel.
     const source = ring % 2 === 1 ? sampled.slice().reverse() : sampled;
@@ -1000,9 +1185,10 @@ function ringArea(ring: Point[]): number {
  */
 export function spiralFill(
   path: CompoundPath,
-  options: { spacing: number; clockwise?: boolean; startAtCenter?: boolean },
+  options: { spacing: number; clockwise?: boolean; startAtCenter?: boolean; stitchLength?: number },
 ): RawStitch[] {
   const spacing = Math.max(0.3, options.spacing);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const direction = options.clockwise === false ? -1 : 1;
   const out: RawStitch[] = [];
 
@@ -1013,12 +1199,14 @@ export function spiralFill(
 
   const b = spacing / TAU; // Archimedean: r = b * theta
   const maxTheta = (radius / b) * 1.4;
-  const step = spacing / 4; // sample 4x per spacing for smoothness
 
   let prevInside = false;
   let prev: RawStitch | null = null;
 
-  for (let theta = 0; theta <= maxTheta; theta += step) {
+  // The arc travelled by one angular step grows with radius, so keep the arc
+  // length constant instead: a fixed angular step puts stitches 0.1 mm apart
+  // near the centre and 3 mm apart at the rim.
+  for (let theta = 0; theta <= maxTheta; ) {
     const r = b * theta;
     const a = direction * theta;
     const p = { x: center.x + r * Math.cos(a), y: center.y + r * Math.sin(a) };
@@ -1030,6 +1218,8 @@ export function spiralFill(
       prev = { x: p.x, y: p.y, command: SEW };
     }
     prevInside = inside;
+
+    theta += Math.min(0.45, stitchLength / Math.max(1, r));
   }
 
   return out;
@@ -1045,6 +1235,14 @@ export interface AdvancedFillOptions {
   angle?: number;
   /** Row pitch / stitch density in mm. */
   spacing?: number;
+  /**
+   * Distance between penetrations along a row, in mm.
+   *
+   * Row pitch and stitch length are different quantities: `spacing` says how
+   * far apart the rows are, this says how long each stitch is. Absent means
+   * 3 mm, the same default the plain tatami uses.
+   */
+  stitchLength?: number;
 }
 
 /**
@@ -1061,9 +1259,10 @@ export function accordionFill(path: CompoundPath, options: AdvancedFillOptions =
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
-  const pitch = spacing * 2.2;
-  const amp = spacing * 1.6;
-  const step = spacing * 1.6;
+  const stitchLength = fillStitchLength(options.stitchLength);
+  const pitch = Math.max(spacing * 2.2, stitchLength * 0.9);
+  const amp = Math.max(spacing * 1.6, stitchLength * 0.5);
+  const step = stitchLength;
   const inset = Math.min(amp, (box.maxY - box.minY) / 2);
   const out: RawStitch[] = [];
 
@@ -1088,7 +1287,10 @@ export function accordionFill(path: CompoundPath, options: AdvancedFillOptions =
   }
 
   rotateBackIntoDesign(out, center, angle);
-  breakLongTravels(out, 4);
+  // The zig-zag legs are stitches, not travel: break only moves longer than a
+  // leg, or the pattern's own stitches would be converted into jumps and the
+  // fill would lose almost every penetration.
+  breakLongTravels(out, Math.max(4, Math.hypot(step, amp * 2) + 0.5));
   return out;
 }
 
@@ -1105,6 +1307,7 @@ export function florentineFill(path: CompoundPath, options: AdvancedFillOptions 
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const band = spacing * 6;
   const pitch = spacing * 1.6;
   const slope = Math.tan(toRadians(35));
@@ -1124,7 +1327,7 @@ export function florentineFill(path: CompoundPath, options: AdvancedFillOptions 
       const ordered = reverse ? spans.slice().reverse() : spans;
 
       for (const [sx, ex] of ordered) {
-        const xs = spanPoints(sx, ex, spacing * 1.2);
+        const xs = spanPoints(sx, ex, stitchLength);
         for (const x of xs) {
           // The tilt resets every band, so each row is a zigzag leaf inside
           // its band rather than one huge diagonal across the shape.
@@ -1149,9 +1352,10 @@ export function liquidFill(path: CompoundPath, options: AdvancedFillOptions = {}
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const pitch = spacing * 1.6;
-  const amp = spacing * 0.9;
-  const wavelength = Math.max(2, spacing * 9);
+  const amp = Math.max(spacing * 0.9, stitchLength * 0.22);
+  const wavelength = Math.max(4, stitchLength * 2.5);
   const inset = Math.min(amp, (box.maxY - box.minY) / 2);
   const out: RawStitch[] = [];
 
@@ -1163,7 +1367,7 @@ export function liquidFill(path: CompoundPath, options: AdvancedFillOptions = {}
     const ordered = reverse ? spans.slice().reverse() : spans;
 
     for (const [sx, ex] of ordered) {
-      const xs = spanPoints(sx, ex, spacing * 1.1);
+      const xs = spanPoints(sx, ex, stitchLength);
       for (const x of xs) {
         const yy = y0 + amp * Math.sin((TAU * (x - sx)) / wavelength + (r % 2) * Math.PI);
         if (!pointInRotated(rotated, { x, y: yy })) continue;
@@ -1189,6 +1393,7 @@ export function mazeFill(path: CompoundPath, options: AdvancedFillOptions = {}):
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.2, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const pitch = spacing * 1.6;
   const out: RawStitch[] = [];
 
@@ -1202,7 +1407,7 @@ export function mazeFill(path: CompoundPath, options: AdvancedFillOptions = {}):
     for (const [sx, ex] of ordered) {
       const x1 = sx + pitch * 0.75;
       const x2 = ex - pitch * 0.75;
-      const xs = spanPoints(x1, Math.max(x1, x2), spacing);
+      const xs = spanPoints(x1, Math.max(x1, x2), stitchLength);
       const walked = reverse ? xs.slice().reverse() : xs;
       for (const x of walked) out.push({ x, y, command: SEW });
     }
@@ -1220,8 +1425,9 @@ export function stringFill(path: CompoundPath, options: AdvancedFillOptions = {}
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const pitch = spacing * 2.6;
-  const step = Math.max(1.5, spacing * 5);
+  const step = Math.max(1.5, stitchLength);
   const drift = spacing * 2.5;
   const out: RawStitch[] = [];
 
@@ -1334,12 +1540,14 @@ export function stippleFill(path: CompoundPath, options: AdvancedFillOptions = {
 export function crossFill(path: CompoundPath, options: AdvancedFillOptions = {}): RawStitch[] {
   const angle = options.angle ?? 0;
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const pitch = spacing * 2;
   const edgeInset = Math.min(0.3, spacing * 0.35);
 
   const base = tatamiFill(path, {
     angle,
     spacing: pitch,
+    stitchLength,
     serpentine: true,
     offsetPattern: false,
     edgeInset,
@@ -1347,6 +1555,7 @@ export function crossFill(path: CompoundPath, options: AdvancedFillOptions = {})
   const crossed = tatamiFill(path, {
     angle: angle + 90,
     spacing: pitch,
+    stitchLength,
     serpentine: true,
     offsetPattern: false,
     edgeInset,
@@ -1368,6 +1577,7 @@ export function shadingFill(path: CompoundPath, options: AdvancedFillOptions = {
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.15, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const height = box.maxY - box.minY;
   const out: RawStitch[] = [];
 
@@ -1381,7 +1591,7 @@ export function shadingFill(path: CompoundPath, options: AdvancedFillOptions = {
     const ordered = reverse ? spans.slice().reverse() : spans;
 
     for (const [sx, ex] of ordered) {
-      const xs = spanPoints(sx, ex, spacing, (r % 2) * (spacing / 2));
+      const xs = spanPoints(sx, ex, stitchLength, (r % 2) * (stitchLength / 2));
       const walked = reverse ? xs.slice().reverse() : xs;
       for (const x of walked) out.push({ x, y, command: SEW });
     }
@@ -1402,6 +1612,7 @@ export function handStitchFill(path: CompoundPath, options: AdvancedFillOptions 
   const { rotated, center, angle, box } = space;
 
   const spacing = Math.max(0.2, options.spacing ?? 0.45);
+  const stitchLength = fillStitchLength(options.stitchLength);
   const pitch = spacing * 2.4;
   const rand = mulberry32(textureSeed(box.minX, box.minY, box.maxX, box.maxY));
   const out: RawStitch[] = [];
@@ -1421,7 +1632,7 @@ export function handStitchFill(path: CompoundPath, options: AdvancedFillOptions 
         if (pointInRotated(rotated, { x, y: py })) {
           out.push({ x, y: py, command: SEW });
         }
-        x += dir * Math.max(0.4, spacing * (2.4 + rand() * 2.4));
+        x += dir * Math.max(0.6, stitchLength * (0.55 + rand() * 0.9));
       }
     }
   }

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   satinFromStroke,
+  satinFromOutline,
   tatamiFill,
+  fillStitchLength,
   runStitch,
   beanStitch,
   contourFill,
@@ -172,6 +174,61 @@ describe('satin column', () => {
   });
 });
 
+describe('satin from an outline', () => {
+  /**
+   * A closed single ring can be a column boundary rather than a centre line.
+   * The drawn rectangle tool and the image tracer both produce exactly that,
+   * so treating the ring as a stroke used to sew a 0.4 mm hairline down its
+   * own outline instead of filling the shape.
+   */
+  it('fills a thin closed ring across its width instead of sewing its outline', () => {
+    const path = rect(60, 5);
+    const stitches = satinFromOutline(path, {
+      spacing: 0.4,
+      maxStitchLength: 12.1,
+      pullCompensation: 0,
+      splitStrategy: 'divide',
+    });
+    const sewn = stitches.filter((s) => s.command === 'stitch');
+    expect(sewn.length).toBeGreaterThan(250);
+    expect(sewn.length).toBeLessThan(400);
+
+    // Rows advance along the 60 mm length, and every row crosses the full
+    // 5 mm width: that is a column, not an outline. The long axis is x, so
+    // the penetrations of one row share an x and differ in y.
+    const rows = new Map<number, number[]>();
+    for (const s of sewn) {
+      const key = Math.round(s.x * 100) / 100;
+      const ys = rows.get(key);
+      if (ys) ys.push(s.y);
+      else rows.set(key, [s.y]);
+    }
+    let fullRows = 0;
+    for (const ys of rows.values()) {
+      if (Math.max(...ys) - Math.min(...ys) > 4) fullRows++;
+    }
+    expect(fullRows).toBeGreaterThan(100);
+  });
+
+  it('never returns a stitch longer than the machine limit', () => {
+    const stitches = satinFromOutline(rect(30, 30), {
+      spacing: 0.5,
+      maxStitchLength: 12.1,
+      pullCompensation: 0,
+      splitStrategy: 'divide',
+    });
+    let sewn = 0;
+    for (let i = 1; i < stitches.length; i++) {
+      const a = stitches[i - 1]!;
+      const b = stitches[i]!;
+      if (b.command !== 'stitch' || a.command !== 'stitch') continue;
+      sewn++;
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThanOrEqual(12.1 + 1e-6);
+    }
+    expect(sewn).toBeGreaterThan(100);
+  });
+});
+
 describe('tatami fill', () => {
   it('generates stitches inside a plain rectangle', () => {
     const path = rect(40, 30);
@@ -239,6 +296,102 @@ describe('tatami fill', () => {
     };
     const stitches = tatamiFill(thin, { spacing: 0.5 });
     expect(stitches.length).toBeGreaterThan(0);
+  });
+
+  it('steps along a row by stitch length, not by the row pitch', () => {
+    const path = rect(60, 20);
+    const stitches = tatamiFill(path, {
+      spacing: 0.4,
+      stitchLength: 3,
+      angle: 0,
+      pullCompensation: 0,
+      edgeInset: 0.1,
+    });
+    const sewn = stitches.filter((s) => s.command === 'stitch');
+
+    // Consecutive penetrations on the same row are one stitch length apart;
+    // the row pitch only controls the distance between rows.
+    let maxAlong = 0;
+    for (let i = 1; i < sewn.length; i++) {
+      const a = sewn[i - 1]!;
+      const b = sewn[i]!;
+      if (Math.abs(b.y - a.y) > 0.01) continue;
+      maxAlong = Math.max(maxAlong, Math.abs(b.x - a.x));
+    }
+    expect(maxAlong).toBeLessThanOrEqual(3.01);
+    expect(maxAlong).toBeGreaterThan(2.5);
+
+    // A 0.4 mm step is the old, collapsed fill: six times the stitches for
+    // exactly the same shape and row density.
+    const collapsed = tatamiFill(path, {
+      spacing: 0.4,
+      stitchLength: 0.5,
+      angle: 0,
+      pullCompensation: 0,
+      edgeInset: 0.1,
+    });
+    expect(sewn.length * 2).toBeLessThan(collapsed.length);
+  });
+
+  it('clamps an absurd stitch length into a machine-safe range', () => {
+    expect(fillStitchLength(undefined)).toBe(3);
+    expect(fillStitchLength(0)).toBe(0.5);
+    expect(fillStitchLength(100)).toBe(8);
+    expect(fillStitchLength(Number.NaN)).toBe(3);
+  });
+
+  it('snaps a row-end remainder into the last stitch instead of a sliver', () => {
+    // A rotated rectangle makes the row lengths land on awkward remainders.
+    // Each row used to end with a 0.05-0.15 mm stitch just before the travel
+    // to the next row, which is both invisible and a machine bird-nest.
+    const stitches = tatamiFill(rect(37, 23), {
+      spacing: 0.4,
+      stitchLength: 3,
+      angle: 37,
+      pullCompensation: 0.2,
+    });
+    for (let i = 1; i < stitches.length; i++) {
+      const a = stitches[i - 1]!;
+      const b = stitches[i]!;
+      if (a.command !== 'stitch' || b.command !== 'stitch') continue;
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThanOrEqual(0.15);
+    }
+  });
+
+  it('drops a row sliver narrower than a thread', () => {
+    // A hole 0.1 mm from the edge: the row through it would otherwise sew a
+    // 0.1 mm stitch between the edge and the hole - two penetrations in the
+    // same hole, and exactly the sub-0.15 mm stitch validation warns about.
+    const sliver: CompoundPath = {
+      rings: [
+        [
+          { x: 0, y: 0 },
+          { x: 20, y: 0 },
+          { x: 20, y: 10 },
+          { x: 0, y: 10 },
+        ],
+        [
+          { x: 0.1, y: 4.95 },
+          { x: 0.2, y: 4.95 },
+          { x: 0.2, y: 5.05 },
+          { x: 0.1, y: 5.05 },
+        ],
+      ],
+    };
+    const stitches = tatamiFill(sliver, {
+      spacing: 0.5,
+      stitchLength: 2,
+      edgeInset: 0,
+      angle: 0,
+      pullCompensation: 0,
+    });
+
+    for (let i = 1; i < stitches.length; i++) {
+      const a = stitches[i - 1]!;
+      const b = stitches[i]!;
+      if (Math.abs(b.y - a.y) > 0.01) continue;
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThanOrEqual(0.15);
+    }
   });
 
   it('emits jumps when the needle has to cross a gap', () => {

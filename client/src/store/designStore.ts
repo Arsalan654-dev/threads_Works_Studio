@@ -84,6 +84,7 @@ import {
   createEmptyDesign,
   createObject,
   DEFAULT_SPACING,
+  DEFAULT_STITCH_LENGTH,
   nextObjectId,
   defaultParams,
 } from '../model/defaults.js';
@@ -580,10 +581,21 @@ interface DesignStore {
   photoStitch: (image: RasterImage, options?: PhotoStitchRequest) => PhotoStitchSummary;
 }
 
+/**
+ * Traced regions at or below this sewn width become satin columns.
+ *
+ * 2.4 mm is the width where a tatami fill stops reading as a clean edge (two
+ * or three rows at most) and a satin column becomes what a digitizer would
+ * choose for lettering and thin line art.
+ */
+const DIGITIZE_SATIN_MAX_MM = 2.4;
+
 /** Tracing options plus the stitch settings applied to the result. */
 export interface DigitizeOptions extends AutoDigitizeOptions {
   /** Fill spacing for the traced objects, in mm. Default 0.4. */
   spacing?: number;
+  /** Distance between penetrations along a fill row, in mm. Default 3. */
+  stitchLength?: number;
   /** Replace the current design (default) or add the traced objects to it. */
   mode?: 'replace' | 'add';
   /**
@@ -2176,6 +2188,7 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
       if (result.regions.length === 0) return summary;
 
       const spacing = Math.max(0.1, options.spacing ?? DEFAULT_SPACING);
+      const stitchLength = Math.max(0.5, options.stitchLength ?? DEFAULT_STITCH_LENGTH);
 
       mutate((d) => {
         // Centre the traced art in the field so it lands inside the hoop
@@ -2191,10 +2204,21 @@ export const useDesignStore = create<DesignStore>()((set, get) => {
           // Traced regions are new fills too, so they honour the "default
           // stitch type" preference the same way a shape drawn by hand does.
           const preferred = referenceStore.getState().settings?.defaultStitchType;
+          // A traced ribbon thinner than a satin column reads wrong as a fill:
+          // lettering, outlines and thin details are what make a traced logo
+          // look like its picture, and satin across their width is how a
+          // digitizer sews them. The outline itself is the column boundary.
+          if (region.thicknessMm <= DIGITIZE_SATIN_MAX_MM) {
+            const base = createObject('column', rings, region.colorIndex, index);
+            return {
+              ...base,
+              params: { ...base.params, spacing, stitchLength },
+            };
+          }
           const base = createObject('fill', rings, region.colorIndex, index, preferred);
           return {
             ...base,
-            params: { ...base.params, angle: region.angleDeg, spacing },
+            params: { ...base.params, angle: region.angleDeg, spacing, stitchLength },
           };
         });
 

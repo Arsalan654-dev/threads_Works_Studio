@@ -50,8 +50,12 @@ export const SettingsValueSchema = z.object({
    */
   gridMajorSize: z.number().finite().min(0.5).max(250).default(25),
   previewUnderlay: z.boolean().default(true),
-  /** Lit/3D thread preview. Off keeps the original flat rendering. */
-  preview3d: z.boolean().default(false),
+  /**
+   * Lit/3D thread preview. On by default: a flat 0.4 mm thread at a 0.4 mm row
+   * pitch covers itself completely, so the first thing a new user sees would
+   * otherwise be one solid block with no visible stitch texture.
+   */
+  preview3d: z.boolean().default(true),
   stitchSimulationSpeed: z.number().finite().min(0.25).max(8).default(1),
 });
 

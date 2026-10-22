@@ -103,6 +103,7 @@ export function ImageTraceDialog({ onClose, notify }: ImageTraceDialogProps): Re
     useState<(typeof PHOTO_DETAILS)[number]['id']>('normal');
   const [detailId, setDetailId] = useState<(typeof DETAIL_LEVELS)[number]['id']>('normal');
   const [spacing, setSpacing] = useState(0.4);
+  const [stitchLength, setStitchLength] = useState(3);
   const [dropBackground, setDropBackground] = useState(true);
   const [referenceOpacity, setReferenceOpacity] = useState(0.85);
   const [keepReference, setKeepReference] = useState(true);
@@ -248,6 +249,7 @@ export function ImageTraceDialog({ onClose, notify }: ImageTraceDialogProps): Re
         widthMm,
         minRegionMm2: detail.minRegionMm2,
         spacing,
+        stitchLength,
         dropBackground,
         reference: attachment,
       });
@@ -288,6 +290,7 @@ export function ImageTraceDialog({ onClose, notify }: ImageTraceDialogProps): Re
     photoCell,
     detailId,
     spacing,
+    stitchLength,
     dropBackground,
     finishWith,
   ]);
@@ -494,6 +497,22 @@ export function ImageTraceDialog({ onClose, notify }: ImageTraceDialogProps): Re
                         onChange={(e) => setSpacing(Number(e.target.value))}
                       />
                       <output>{spacing.toFixed(2)} mm</output>
+                    </label>
+
+                    <label className="trace-field">
+                      <span>Stitch length</span>
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={8}
+                        step={0.5}
+                        value={stitchLength}
+                        data-testid="trace-stitch-length"
+                        onChange={(e) =>
+                          setStitchLength(clamp(Number(e.target.value) || 3, 0.5, 8))
+                        }
+                      />
+                      <span className="trace-unit">mm</span>
                     </label>
 
                     <label className="trace-check">

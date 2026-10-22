@@ -81,7 +81,7 @@ export function EditorCanvas() {
   // the canvas as the machine will not sew it, which makes dense areas easier
   // to read. It never changes what gets exported.
   const showUnderlay = referenceStore((s) => s.settings?.previewUnderlay ?? true);
-  const preview3d = referenceStore((s) => s.settings?.preview3d ?? false);
+  const preview3d = referenceStore((s) => s.settings?.preview3d ?? true);
   const hoopPresets = referenceStore((s) => s.hoops);
   const capWrap = useDesignStore((s) => s.design.capWrap);
 

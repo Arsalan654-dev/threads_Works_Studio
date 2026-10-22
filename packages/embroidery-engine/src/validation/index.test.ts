@@ -42,6 +42,68 @@ describe('validateSequence', () => {
     expect(result.issues.some((i) => i.code === 'EMPTY_DESIGN')).toBe(true);
   });
 
+  /** A hand-built sequence, in order, for the travel rules. */
+  function seq(
+    rows: Array<[Stitch['command'], number, number]>,
+  ): Stitch[] {
+    return rows.map(([command, x, y], i) => ({
+      command,
+      x,
+      y,
+      colorIndex: 0,
+      objectId: null,
+      sequence: i,
+    }));
+  }
+
+  it('warns when thread is dragged across a long jump', () => {
+    const result = validateSequence(
+      seq([
+        ['stitch', 0, 0],
+        ['jump', 100, 0],
+        ['stitch', 100, 0],
+      ]),
+      [],
+      null,
+    );
+
+    const issue = result.issues.find((i) => i.code === 'LONG_TRAVEL');
+    expect(issue?.severity).toBe('warning');
+  });
+
+  it('does not warn when the long travel starts after a trim', () => {
+    const result = validateSequence(
+      seq([
+        ['stitch', 0, 0],
+        ['trim', 0, 0],
+        ['jump', 100, 0],
+        ['stitch', 100, 0],
+      ]),
+      [],
+      null,
+    );
+
+    expect(result.issues.some((i) => i.code === 'LONG_TRAVEL')).toBe(false);
+  });
+
+  it('counts a long travel split into short jumps', () => {
+    // No single jump is over the limit, but the thread is attached the whole
+    // way, so the drag is the sum - exactly what the warning is about.
+    const result = validateSequence(
+      seq([
+        ['stitch', 0, 0],
+        ['jump', 25, 0],
+        ['jump', 50, 0],
+        ['jump', 75, 0],
+        ['stitch', 100, 0],
+      ]),
+      [],
+      null,
+    );
+
+    expect(result.issues.some((i) => i.code === 'LONG_TRAVEL')).toBe(true);
+  });
+
   it('accepts a design sitting exactly on the stitch ceiling', () => {
     // 2,000,000 stitches at 5 mm spacing run 10,000 mm - far past any hoop,
     // but the hoop is not what is being checked here, so it is left out.

@@ -670,21 +670,27 @@ describe('advanced lettering', () => {
   const countOf = (): number =>
     Number((screen.getByTestId('stitch-count').textContent ?? '').replace(/\D/g, ''));
 
+  /** Needle penetrations only, ignoring the jumps and trims between letters. */
+  const sewCountOf = (): number =>
+    Number((screen.getByTestId('sew-count').textContent ?? '').replace(/\D/g, ''));
+
   /** The live lettering spec of the design's only text object. */
   const textSpec = (): LetteringSpec => {
     const object = useDesignStore.getState().design.objects.find((o) => o.type === 'lettering')!;
     return object.lettering!;
   };
 
-  it('resequences the letters without changing the stitch count', async () => {
+  it('resequences the letters without changing the sewn stitch count', async () => {
     await mountWithText();
-    const before = countOf();
+    const before = sewCountOf();
 
     fireEvent.change(screen.getByTestId('lettering-order'), { target: { value: 'reverse' } });
     await waitFor(() => expect(textSpec().order).toBe('reverse'));
 
-    // Same strokes, same needle penetrations - only the order changed.
-    expect(countOf()).toBe(before);
+    // Same strokes, same needle penetrations - only the order changed. The
+    // travel between letters may gain a trim (and so the total command count
+    // can change), but every glyph is sewn identically.
+    expect(sewCountOf()).toBe(before);
   });
 
   it('composes a monogram and can wrap it in a frame', async () => {
@@ -1203,10 +1209,15 @@ describe('carving stamp through the UI', () => {
     );
 
     const countText = (): number =>
-      Number((screen.getByTestId('stitch-count').textContent ?? '').replace(/\D/g, ''));
+      Number((screen.getByTestId('sew-count').textContent ?? '').replace(/\D/g, ''));
 
     const plain = countText();
     fireEvent.click(screen.getByTestId('carve-enabled'));
+    // The stamp outline is new thread around every stamp: turn it off so the
+    // count measures the fill stitches carving removes rather than the
+    // outline it adds. Sewn stitches, not the total: the re-entry after a
+    // carved hole becomes a jump, which keeps the command count level.
+    fireEvent.click(screen.getByTestId('carve-outline'));
 
     await waitFor(() => expect(countText()).toBeLessThan(plain));
   });

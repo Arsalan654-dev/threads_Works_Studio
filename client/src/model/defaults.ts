@@ -18,6 +18,8 @@ import type {
 import { DEFAULT_CAP_WRAP, DEFAULT_LETTERING_SPEC } from '@threadworks/engine';
 
 export const DEFAULT_SPACING = 0.4;
+/** Default fill stitch length (distance between penetrations along a row). */
+export const DEFAULT_STITCH_LENGTH = 3;
 export const DST_MAX_STEP_MM = 12.1;
 
 /** Undo/redo depth. Large enough to recover from a mistake, bounded so a
@@ -50,6 +52,7 @@ export function defaultParams(stitchType: StitchType = 'tatami'): StitchParamete
     stitchType,
     angle: 0,
     spacing,
+    stitchLength: DEFAULT_STITCH_LENGTH,
     maxStitchLength: DST_MAX_STEP_MM,
     minStitchLength: 0.3,
     pullCompensation: stitchType === 'satin' ? 0.4 : 0.2,

@@ -90,6 +90,28 @@ describe('image to embroidery dialog', () => {
     expect(design.referenceImage?.width).toBeCloseTo(40, 1);
   });
 
+  it('carries the chosen fill stitch length into the auto-stitched parts', async () => {
+    const notify = vi.fn();
+    const onClose = vi.fn();
+    render(<ImageTraceDialog onClose={onClose} notify={notify} />);
+    await pickImage();
+
+    fireEvent.click(screen.getByTestId('trace-auto-yes'));
+    fireEvent.change(screen.getByTestId('trace-auto-style'), { target: { value: 'shapes' } });
+    fireEvent.change(screen.getByTestId('trace-width'), { target: { value: '60' } });
+    fireEvent.change(screen.getByTestId('trace-stitch-length'), { target: { value: '4.5' } });
+    fireEvent.click(screen.getByTestId('trace-apply'));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    // Two solid 30 mm blocks: both are wide enough to stay fills, and both
+    // must step along their rows at the requested 4.5 mm rather than at the
+    // 0.4 mm row pitch (the bug that turned every fill into a solid block).
+    const objects = useDesignStore.getState().design.objects;
+    expect(objects.length).toBeGreaterThan(0);
+    expect(objects.every((o) => o.params.stitchLength === 4.5)).toBe(true);
+  });
+
   it('places a clear tracing guide without creating stitches', async () => {
     const notify = vi.fn();
     const onClose = vi.fn();

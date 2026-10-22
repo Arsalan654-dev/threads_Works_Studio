@@ -31,6 +31,8 @@ const SETTINGS: AppSettings = {
   gridSize: 5,
   gridMajorSize: 25,
   previewUnderlay: true,
+  // Explicitly off here so the toggle is tested from a known flat state.
+  preview3d: false,
   stitchSimulationSpeed: 1,
   updatedAt: null,
 };

@@ -153,10 +153,29 @@ describe('fillPattern', () => {
   });
 
   it('motif fill lays a repeating motif grid, not continuous rows', () => {
-    const motif = sewn('motif');
-    // A motif fill stitches a little shape at each grid point, so there must
-    // be far fewer penetrations than a solid tatami of the same density.
-    expect(motif.length).toBeLessThan(sewn('tatami').length);
+    const list = generateObjectStitches(fillObject('motif'));
+    const tatami = generateObjectStitches(fillObject('tatami'));
+
+    // Count the separate sewn runs: a motif fill stamps a little shape at each
+    // grid point, so it lifts the needle between motifs; a tatami is one
+    // continuous serpentine. If motif stitches were continuous rows, the
+    // pattern would not be a motif grid at all.
+    const runs = (l: typeof list): number => {
+      let count = 0;
+      let sewing = false;
+      for (const s of l) {
+        if (s.command === 'stitch') {
+          if (!sewing) count++;
+          sewing = true;
+        } else {
+          sewing = false;
+        }
+      }
+      return count;
+    };
+
+    expect(runs(list)).toBeGreaterThan(50);
+    expect(runs(list)).toBeGreaterThan(runs(tatami) * 10);
   });
 
   it('contour fill follows the outline inward', () => {

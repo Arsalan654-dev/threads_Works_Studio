@@ -1185,6 +1185,50 @@ describe('image tracing', () => {
     expect(compiled.validation.issues.filter((i) => i.severity === 'error')).toEqual([]);
   });
 
+  it('sews a traced ribbon as a satin column, not a hairline fill', () => {
+    const width = 40;
+    const height = 40;
+    const data = new Uint8Array(width * height * 4);
+    for (let y = 19; y <= 20; y++) {
+      for (let x = 5; x < 35; x++) {
+        const o = (y * width + x) * 4;
+        data[o] = 220;
+        data[o + 1] = 30;
+        data[o + 2] = 40;
+        data[o + 3] = 255;
+      }
+    }
+
+    // 2 px of a 40 px / 40 mm image: a 2 mm ribbon, well under the 2.4 mm
+    // where a fill stops reading as a clean edge.
+    useDesignStore.getState().digitizeImage(
+      { width, height, data },
+      { colorCount: 4, widthMm: 40, spacing: 0.4, stitchLength: 2.5 },
+    );
+
+    const objects = useDesignStore.getState().design.objects;
+    expect(objects).toHaveLength(1);
+    expect(objects[0]!.type).toBe('column');
+    expect(objects[0]!.params.stitchType).toBe('satin');
+    expect(objects[0]!.params.stitchLength).toBe(2.5);
+
+    // The column sews across its 2 mm width, row after row: a hairline down
+    // its own outline would be far fewer stitches and none spanning the
+    // width. The ribbon is horizontal, so one row's penetrations share an x
+    // and differ in y.
+    const compiled = useDesignStore.getState().getCompiled();
+    const sewn = compiled.sequence.stitches.filter((s) => s.command === 'stitch');
+    expect(sewn.length).toBeGreaterThan(60);
+    let across = 0;
+    for (let i = 1; i < sewn.length; i++) {
+      const a = sewn[i - 1]!;
+      const b = sewn[i]!;
+      if (Math.abs(b.x - a.x) > 0.01) continue;
+      if (Math.abs(b.y - a.y) > 1.5) across++;
+    }
+    expect(across).toBeGreaterThan(40);
+  });
+
   it('can add to the design instead of replacing it', () => {
     useDesignStore.getState().addObject(createObject('fill', [rectangleRing(0, 0, 10, 10)]));
 
